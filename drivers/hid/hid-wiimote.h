@@ -73,12 +73,14 @@ enum wiimote_devtype {
 	WIIMOTE_DEV_GENERIC,
 	WIIMOTE_DEV_GEN10,
 	WIIMOTE_DEV_GEN20,
+	WIIMOTE_DEV_BALANCE_BOARD,
 	WIIMOTE_DEV_NUM,
 };
 
 enum wiimote_exttype {
 	WIIMOTE_EXT_NONE,
 	WIIMOTE_EXT_UNKNOWN,
+	WIIMOTE_EXT_BALANCE_BOARD,
 	WIIMOTE_EXT_NUM,
 };
 
@@ -115,6 +117,9 @@ struct wiimote_state {
 	__u8 cmd_err;
 	__u8 *cmd_read_buf;
 	__u8 cmd_read_size;
+
+	/* calibration data */
+	__u16 calib_bboard[4][3];
 };
 
 struct wiimote_data {
@@ -128,12 +133,11 @@ struct wiimote_data {
 	struct wiimote_ext *ext;
 	struct wiimote_debug *debug;
 
-	spinlock_t qlock;
-	__u8 head;
-	__u8 tail;
-	struct wiimote_buf outq[WIIMOTE_BUFSIZE];
-	struct work_struct worker;
+	union {
+		struct input_dev *input;
+	} extension;
 
+	struct wiimote_queue queue;
 	struct wiimote_state state;
 	struct work_struct init_worker;
 };
