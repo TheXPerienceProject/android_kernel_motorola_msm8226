@@ -169,6 +169,8 @@ static const struct snd_soc_dapm_widget msm8x10_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Handset Mic", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Secondary Mic", NULL),
+	SND_SOC_DAPM_MIC("Digital Mic1", NULL),
+	SND_SOC_DAPM_MIC("Digital Mic2", NULL),
 };
 static const struct snd_soc_dapm_route msm8x10_spk_map[] = {
 	{"Lineout amp", NULL, "SPK_OUT"},
