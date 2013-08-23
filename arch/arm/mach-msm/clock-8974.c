@@ -578,6 +578,17 @@ static void __iomem *virt_bases[N_BASES];
 			| BVAL(10, 8, s##_mm_source_val), \
 	}
 
+#define F_EDP(f, s, div, m, n) \
+	{ \
+		.freq_hz = (f), \
+		.src_clk = &s##_clk_src.c, \
+		.m_val = (m), \
+		.n_val = ~((n)-(m)) * !!(n), \
+		.d_val = ~(n),\
+		.div_src_val = BVAL(4, 0, (int)(2*(div) - 1)) \
+			| BVAL(10, 8, s##_mm_source_val), \
+	}
+
 #define F_MDSS(f, s, div, m, n) \
 	{ \
 		.freq_hz = (f), \
