@@ -792,6 +792,18 @@ out:
 static struct clk *rcg_hdmi_clk_get_parent(struct clk *c)
 {
 	struct rcg_clk *rcg = to_rcg_clk(c);
+	struct clk *clk;
+	struct clk_freq_tbl *freq;
+	uint32_t rate;
+
+	rcg->current_freq->freq_hz = clk_get_rate(c->parent);
+
+	return freq->src_clk;
+}
+
+static struct clk *rcg_hdmi_clk_get_parent(struct clk *c)
+{
+	struct rcg_clk *rcg = to_rcg_clk(c);
 	struct clk_freq_tbl *freq = rcg->freq_tbl;
 	u32 cmd_rcgr_regval;
 
@@ -909,6 +921,15 @@ struct clk_ops clk_ops_rcg_hdmi = {
 	.round_rate = rcg_clk_round_rate,
 	.handoff = rcg_clk_handoff,
 	.get_parent = rcg_hdmi_clk_get_parent,
+};
+
+struct clk_ops clk_ops_rcg_edp = {
+	.enable = rcg_clk_prepare,
+	.set_rate = rcg_clk_set_rate_hdmi,
+	.list_rate = rcg_clk_list_rate,
+	.round_rate = rcg_clk_round_rate,
+	.handoff = rcg_clk_handoff,
+	.get_parent = edp_clk_get_parent,
 };
 
 struct clk_ops clk_ops_branch = {

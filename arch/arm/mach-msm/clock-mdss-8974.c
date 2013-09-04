@@ -2144,17 +2144,13 @@ static unsigned long hdmi_vco_get_rate(struct clk *c)
 
 static long hdmi_vco_round_rate(struct clk *c, unsigned long rate)
 {
+	unsigned long rrate = rate;
 	struct hdmi_pll_vco_clk *vco = to_hdmi_vco_clk(c);
-	unsigned long rrate = 0;
-	unsigned long *lp = vco->rate_list;
 
-	while (*lp) {
-		rrate = *lp;
-
-		if (rate <= rrate)
-			break;
-		lp++;
-	}
+	if (rate < vco->min_rate)
+		rrate = vco->min_rate;
+	if (rate > vco->max_rate)
+		rrate = vco->max_rate;
 
 	pr_debug("%s: rrate=%ld\n", __func__, rrate);
 
@@ -2226,19 +2222,6 @@ static enum handoff hdmi_vco_handoff(struct clk *c)
 	return ret;
 }
 
-/* Should be in increasing order */
-static unsigned long hdmi_vco_rate_list[] = {
-	 650000000,
-	 742500000,
-	 756000000,
-	 810000000,
-	 810900000,
-	1080000000,
-	1342500000,
-	1485000000,
-		 0
-};
-
 static struct clk_ops hdmi_vco_clk_ops = {
 	.enable = hdmi_vco_enable,
 	.set_rate = hdmi_vco_set_rate,
@@ -2251,7 +2234,8 @@ static struct clk_ops hdmi_vco_clk_ops = {
 };
 
 static struct hdmi_pll_vco_clk hdmi_vco_clk = {
-	.rate_list = hdmi_vco_rate_list,
+	.min_rate = 600000000,
+	.max_rate = 1800000000,
 	.c = {
 		.dbg_name = "hdmi_vco_clk",
 		.ops = &hdmi_vco_clk_ops,
