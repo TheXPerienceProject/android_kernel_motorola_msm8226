@@ -167,12 +167,8 @@ static int mdss_gdsc_enabled(void)
 		(!(readl_relaxed(gdsc_base) & BIT(0)));
 }
 
-<<<<<<< HEAD
 /* Auto PLL calibaration */
 static int mdss_ahb_clk_enable(int enable)
-=======
-static void hdmi_vco_disable(struct clk *c)
->>>>>>> clock-mdss-8974: Switch HDMI clocks to use the new PLL implementation
 {
 	int rc = 0;
 
@@ -285,7 +281,6 @@ static int hdmi_vco_enable(struct clk *c)
 
 	return 0;
 } /* hdmi_vco_enable */
-<<<<<<< HEAD
 
 static inline struct hdmi_pll_vco_clk *to_hdmi_vco_clk(struct clk *clk)
 {
@@ -425,20 +420,11 @@ static void hdmi_phy_pll_calculator(u32 vco_freq)
 	pr_debug("%s: HDMI_UNI_PLL_CAL_CFG11 = 0x%x\n", __func__, val);
 	REG_W(val, hdmi_phy_pll_base + HDMI_UNI_PLL_CAL_CFG11);
 } /* hdmi_phy_pll_calculator */
-=======
-
-static inline struct hdmi_pll_vco_clk *to_hdmi_vco_clk(struct clk *clk)
-{
-	return container_of(clk, struct hdmi_pll_vco_clk, c);
-}
->>>>>>> clock-mdss-8974: Switch HDMI clocks to use the new PLL implementation
 
 static int hdmi_vco_set_rate(struct clk *c, unsigned long rate)
 {
 	unsigned int set_power_dwn = 0;
 	int rc = 0;
-
-	struct hdmi_pll_vco_clk *vco = to_hdmi_vco_clk(c);
 
 	struct hdmi_pll_vco_clk *vco = to_hdmi_vco_clk(c);
 
@@ -455,16 +441,11 @@ static int hdmi_vco_set_rate(struct clk *c, unsigned long rate)
 	}
 
 	pr_debug("%s: rate=%ld\n", __func__, rate);
-<<<<<<< HEAD
 
 	switch (rate) {
 	case 0:
 		break;
 
-=======
-
-	switch (rate) {
->>>>>>> clock-mdss-8974: Switch HDMI clocks to use the new PLL implementation
 	case 756000000:
 		/* 640x480p60 */
 		REG_W(0x81, hdmi_phy_base + HDMI_PHY_GLB_CFG);
@@ -2187,8 +2168,10 @@ static int hdmi_vco_prepare(struct clk *c)
 
 	pr_debug("%s: rate=%ld\n", __func__, vco->rate);
 
-	if (!vco->rate_set && vco->rate)
+	if (!vco->rate_set)
 		ret = hdmi_vco_set_rate(c, vco->rate);
+
+	vco->rate_set = false;
 
 	if (!ret)
 		ret = clk_prepare(mdss_ahb_clk);
@@ -2198,10 +2181,6 @@ static int hdmi_vco_prepare(struct clk *c)
 
 static void hdmi_vco_unprepare(struct clk *c)
 {
-	struct hdmi_pll_vco_clk *vco = to_hdmi_vco_clk(c);
-
-	vco->rate_set = false;
-
 	clk_unprepare(mdss_ahb_clk);
 }
 
@@ -2373,6 +2352,7 @@ static int hdmipll_get_mux_sel(struct mux_clk *clk)
 	mux_sel = DSS_REG_R(hdmi_phy_pll_base, HDMI_UNI_PLL_POSTDIV1_CFG);
 	mux_sel &= 0x03;
 	pr_debug("%s: mux_sel=%d\n", __func__, mux_sel);
+
 	mdss_ahb_clk_enable(0);
 
 	return mux_sel;
@@ -2459,8 +2439,6 @@ void __init mdss_clk_ctrl_pre_init(struct clk *ahb_clk)
 	byte_mux_clk_ops = clk_ops_gen_mux;
 	byte_mux_clk_ops.prepare = mux_prepare;
 
-<<<<<<< HEAD
-=======
 	edp_mainlink_clk_src_ops = clk_ops_div;
 	edp_mainlink_clk_src_ops.get_parent = clk_get_parent;
 	edp_mainlink_clk_src_ops.get_rate = edp_mainlink_get_rate;
@@ -2468,8 +2446,6 @@ void __init mdss_clk_ctrl_pre_init(struct clk *ahb_clk)
 	edp_pixel_clk_ops = clk_ops_slave_div;
 	edp_pixel_clk_ops.prepare = div_prepare;
 
->>>>>>> clock-mdss-8974: Switch HDMI clocks to use the new PLL implementation
 	hdmi_mux_ops = clk_ops_gen_mux;
 	hdmi_mux_ops.prepare = hdmi_mux_prepare;
 }
-
