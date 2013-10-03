@@ -2022,7 +2022,7 @@ static int mdss_mdp_overlay_ioctl_handler(struct msm_fb_data_type *mfd,
 {
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_panel_data *pdata;
-	struct mdp_overlay req;
+	struct mdp_overlay *req = NULL;
 	int val, ret = -ENOSYS;
 	struct msmfb_metadata metadata;
 
@@ -2038,12 +2038,15 @@ static int mdss_mdp_overlay_ioctl_handler(struct msm_fb_data_type *mfd,
 		break;
 
 	case MSMFB_OVERLAY_GET:
-		ret = copy_from_user(&req, argp, sizeof(req));
+		req = kmalloc(sizeof(struct mdp_overlay), GFP_KERNEL);
+		if (!req)
+			return -ENOMEM;
+		ret = copy_from_user(req, argp, sizeof(*req));
 		if (!ret) {
-			ret = mdss_mdp_overlay_get(mfd, &req);
+			ret = mdss_mdp_overlay_get(mfd, req);
 
 			if (!IS_ERR_VALUE(ret))
-				ret = copy_to_user(argp, &req, sizeof(req));
+				ret = copy_to_user(argp, req, sizeof(*req));
 		}
 
 		if (ret)
@@ -2051,12 +2054,15 @@ static int mdss_mdp_overlay_ioctl_handler(struct msm_fb_data_type *mfd,
 		break;
 
 	case MSMFB_OVERLAY_SET:
-		ret = copy_from_user(&req, argp, sizeof(req));
+		req = kmalloc(sizeof(struct mdp_overlay), GFP_KERNEL);
+		if (!req)
+			return -ENOMEM;
+		ret = copy_from_user(req, argp, sizeof(*req));
 		if (!ret) {
-			ret = mdss_mdp_overlay_set(mfd, &req);
+			ret = mdss_mdp_overlay_set(mfd, req);
 
 			if (!IS_ERR_VALUE(ret))
-				ret = copy_to_user(argp, &req, sizeof(req));
+				ret = copy_to_user(argp, req, sizeof(*req));
 		}
 		if (ret)
 			pr_debug("OVERLAY_SET failed (%d)\n", ret);
@@ -2150,6 +2156,7 @@ static int mdss_mdp_overlay_ioctl_handler(struct msm_fb_data_type *mfd,
 		break;
 	}
 
+	kfree(req);
 	return ret;
 }
 
