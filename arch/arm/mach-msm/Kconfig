@@ -1906,6 +1906,7 @@ config MSM_DEVFREQ_CPUBW
 	select DEVFREQ_GOV_POWERSAVE
 	select DEVFREQ_GOV_USERSPACE
 	select DEVFREQ_GOV_MSM_CPUFREQ
+
 	default n
 	help
 	  Different devfreq governors use this devfreq device to make CPU to
@@ -1915,9 +1916,15 @@ config MSM_DEVFREQ_CPUBW
 
 config CPU_UNDERCLOCK
 	bool "enable CPU underclocking option"
- 	default y
+	default y
  	help
  	  Enable CPU underclocking to 96Mhz
+
+config INTELLI_PLUG
+	bool "Enable intelli-plug cpu hotplug driver"
+	default n
+	help
+	  Generic Intelli-plug cpu hotplug driver for ARM SOCs
 
 config MSM_AVS_HW
 	bool "Enable Adaptive Voltage Scaling (AVS)"
