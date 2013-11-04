@@ -1437,62 +1437,6 @@ static size_t ion_debug_heap_total(struct ion_client *client,
 }
 
 /**
- * Searches through a clients handles to find if the buffer is owned
- * by this client. Used for debug output.
- * @param client pointer to candidate owner of buffer
- * @param buf pointer to buffer that we are trying to find the owner of
- * @return 1 if found, 0 otherwise
- */
-static int ion_debug_find_buffer_owner(const struct ion_client *client,
-				       const struct ion_buffer *buf)
-{
-	struct rb_node *n;
-
-	for (n = rb_first(&client->handles); n; n = rb_next(n)) {
-		const struct ion_handle *handle = rb_entry(n,
-						     const struct ion_handle,
-						     node);
-		if (handle->buffer == buf)
-			return 1;
-	}
-	return 0;
-}
-
-/**
- * Adds mem_map_data pointer to the list of mem_map
- * Used for debug output.
- * @param mem_map The mem_map list
- * @param data The new data to add to the list
- */
-static void ion_debug_mem_map_add(struct list_head *mem_map,
-				  struct mem_map_data *data)
-{
-	list_add(&data->node, mem_map);
-}
-
-/**
- * Search for an owner of a buffer by iterating over all ION clients.
- * @param dev ion device containing pointers to all the clients.
- * @param buffer pointer to buffer we are trying to find the owner of.
- * @return name of owner.
- */
-const char *ion_debug_locate_owner(const struct ion_device *dev,
-					 const struct ion_buffer *buffer)
-{
-	struct rb_node *j;
-	const char *client_name = NULL;
-
-	for (j = rb_first(&dev->clients); j && !client_name;
-			  j = rb_next(j)) {
-		struct ion_client *client = rb_entry(j, struct ion_client,
-						     node);
-		if (ion_debug_find_buffer_owner(client, buffer))
-			client_name = client->name;
-	}
-	return client_name;
-}
-
-/**
  * Create a mem_map of the heap.
  * @param s seq_file to log error message to.
  * @param heap The heap to create mem_map for.
