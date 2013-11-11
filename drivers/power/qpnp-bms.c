@@ -1706,13 +1706,13 @@ static void backup_soc_and_iavg(struct qpnp_bms_chip *chip, int batt_temp,
 
 	rc = qpnp_write_wrapper(chip, &temp, chip->base + IAVG_STORAGE_REG, 1);
 
-	/* Invalidate the SOC if the temperature is below 0 degC */
+	/* store an invalid soc if temperature is below 5degC */
 	if (batt_temp > IGNORE_SOC_TEMP_DECIDEG)
 		qpnp_masked_write_base(chip, chip->soc_storage_addr,
 				SOC_STORAGE_MASK, (soc + 1) << 1);
 	else
 		qpnp_masked_write_base(chip, chip->soc_storage_addr,
-				SOC_STORAGE_MASK, 0);
+				SOC_STORAGE_MASK, SOC_STORAGE_MASK);
 }
 
 static int scale_soc_while_chg(struct qpnp_bms_chip *chip, int chg_time_sec,
