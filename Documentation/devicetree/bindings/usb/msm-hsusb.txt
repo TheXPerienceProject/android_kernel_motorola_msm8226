@@ -91,6 +91,11 @@ Optional properties :
         Optional "gpio-name" can be "id_gnd" and "id_flt".
 - id_flt_active_high: Active logic of the id_flt gpio if present.
 - id_gnd_active_high: Active logic of the id_gnd gpio if present.
+- qcom,ahb-async-bridge-bypass: If present, indicates that enable AHB2AHB By Pass
+	mode with device controller for better throughput. With this mode, USB Core
+	runs using PNOC clock and synchronous to it. Hence it is must to have proper
+	"qcom,msm_bus,vectors" to have high bus frequency. User shouldn't try to
+	enable this feature without proper bus voting.
 
 Example HSUSB OTG controller device node :
 	usb@f9690000 {
