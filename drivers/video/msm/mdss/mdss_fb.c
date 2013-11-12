@@ -1140,6 +1140,11 @@ static int mdss_fb_open(struct fb_info *info, struct file *file, int user)
 		return -EPERM;
 	}
 
+	if (mfd->shutdown_pending) {
+		pr_err("Shutdown pending. Aborting operation\n");
+		return -EPERM;
+	}
+
 	list_for_each_entry(pinfo, &mfd->proc_list, list) {
 		if (pinfo->file == file)
 			break;
@@ -1263,6 +1268,9 @@ static int mdss_fb_release_all(struct fb_info *info, struct file *file)
 			kthread_stop(mfd->disp_thread);
 			mfd->disp_thread = NULL;
 		}
+
+		if (release_all)
+			kthread_stop(mfd->disp_thread);
 
 		if (pinfo->ref_cnt == 0) {
 			if (mfd->mdp.release_fnc && pid_ref_cnt == 0) {
