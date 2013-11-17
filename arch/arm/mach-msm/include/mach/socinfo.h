@@ -44,6 +44,7 @@
 #define of_board_is_qrd()	of_machine_is_compatible("qcom,qrd")
 #define of_board_is_xpm()	of_machine_is_compatible("qcom,xpm")
 #define of_board_is_skuf()	of_machine_is_compatible("qcom,skuf")
+#define of_board_is_sbc()	of_machine_is_compatible("qcom,sbc")
 
 #define platform_is_msm8226_moto()	of_machine_is_compatible("qcom,msm8226-moto")
 #define platform_is_msm8610_moto()	of_machine_is_compatible("qcom,msm8610-moto")
@@ -80,6 +81,7 @@
 #define of_board_is_qrd()		0
 #define of_board_is_xpm()		0
 #define of_board_is_skuf()		0
+#define of_board_is_sbc()		0
 
 #define platform_is_msm8226_moto()	0
 
