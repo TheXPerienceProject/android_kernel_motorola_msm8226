@@ -1269,8 +1269,10 @@ static int mdss_fb_release_all(struct fb_info *info, struct file *file)
 			mfd->disp_thread = NULL;
 		}
 
-		if (release_all)
+		if (release_all && mfd->disp_thread) {
 			kthread_stop(mfd->disp_thread);
+			mfd->disp_thread = NULL;
+		}
 
 		if (pinfo->ref_cnt == 0) {
 			if (mfd->mdp.release_fnc && pid_ref_cnt == 0) {
