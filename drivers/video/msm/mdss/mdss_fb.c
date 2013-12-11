@@ -1178,6 +1178,7 @@ static int mdss_fb_open(struct fb_info *info, struct file *file, int user)
 			pr_err("unable to start display thread %d\n",
 				mfd->index);
 			result = PTR_ERR(mfd->disp_thread);
+			mfd->disp_thread = NULL;
 			goto thread_error;
 		}
 
@@ -1197,6 +1198,7 @@ static int mdss_fb_open(struct fb_info *info, struct file *file, int user)
 
 blank_error:
 	kthread_stop(mfd->disp_thread);
+	mfd->disp_thread = NULL;
 
 thread_error:
 	if (pinfo && !pinfo->ref_cnt) {
@@ -1267,8 +1269,10 @@ static int mdss_fb_release_all(struct fb_info *info, struct file *file)
 			mfd->disp_thread = NULL;
 		}
 
-		if (release_all)
+		if (release_all && mfd->disp_thread) {
 			kthread_stop(mfd->disp_thread);
+			mfd->disp_thread = NULL;
+		}
 
 		if (pinfo->ref_cnt == 0) {
 			if (mfd->mdp.release_fnc && pid_ref_cnt == 0) {
@@ -1283,7 +1287,10 @@ static int mdss_fb_release_all(struct fb_info *info, struct file *file)
 	}
 
 	if (!mfd->ref_cnt) {
-		kthread_stop(mfd->disp_thread);
+		if (mfd->disp_thread) {
+			kthread_stop(mfd->disp_thread);
+			mfd->disp_thread = NULL;
+		}
 
 		ret = mdss_fb_blank_sub(FB_BLANK_POWERDOWN, info,
 			mfd->op_enable);
