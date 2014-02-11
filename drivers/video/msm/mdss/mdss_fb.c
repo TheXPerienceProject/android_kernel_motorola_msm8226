@@ -1202,7 +1202,6 @@ static int mdss_fb_open(struct fb_info *info, struct file *file, int user)
 
 blank_error:
 	kthread_stop(mfd->disp_thread);
-	mfd->disp_thread = NULL;
 
 thread_error:
 	if (pinfo && !pinfo->ref_cnt) {
@@ -1268,10 +1267,8 @@ static int mdss_fb_release_all(struct fb_info *info, struct file *file)
 			pm_runtime_put(info->dev);
 		} while (!file && pinfo->ref_cnt);
 
-		if (release_all && mfd->disp_thread) {
+		if (release_all)
 			kthread_stop(mfd->disp_thread);
-			mfd->disp_thread = NULL;
-		}
 
 		if (pinfo->ref_cnt == 0) {
 			list_del(&pinfo->list);
@@ -1297,10 +1294,7 @@ static int mdss_fb_release_all(struct fb_info *info, struct file *file)
 	}
 
 	if (!mfd->ref_cnt) {
-		if (mfd->disp_thread) {
-			kthread_stop(mfd->disp_thread);
-			mfd->disp_thread = NULL;
-		}
+		kthread_stop(mfd->disp_thread);
 
 		ret = mdss_fb_blank_sub(FB_BLANK_POWERDOWN, info,
 			mfd->op_enable);
