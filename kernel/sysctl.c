@@ -1237,6 +1237,7 @@ static struct ctl_table vm_table[] = {
 		.proc_handler	= min_free_normal_offset_sysctl_handler,
 		.extra1		= &zero,
 	},
+	{
 		.procname	= "extra_free_kbytes",
 		.data		= &extra_free_kbytes,
 		.maxlen		= sizeof(extra_free_kbytes),
