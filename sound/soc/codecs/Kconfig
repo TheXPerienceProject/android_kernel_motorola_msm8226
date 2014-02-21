@@ -505,6 +505,12 @@ config SND_SOC_TPA6165A2
 	help
 	TPA6165A2 headset detection IC chip
 
+config SOUND_CONTROL_HAX_3_GPL
+	tristate "new wcd93xx sound control hax"
+	default y
+	help
+	  FauxSound WCD93xx chipset sound control hacks 3.0 for deeper hax
+
 config SND_SOC_FSA8500
 	bool "Headset detection chip"
 	depends on I2C
