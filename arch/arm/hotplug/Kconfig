@@ -4,3 +4,9 @@ config ALESSA_PLUG
 	  This driver uses powersuspend to take down the cpu cores
 	  on a dual core device.
 	  Later this maybe be a reemplace of hotplug.
+
+config INTELLI_PLUG
+        bool "Enable intelli-plug cpu hotplug driver"
+        default n
+        help
+          Generic Intelli-plug cpu hotplug driver for ARM SOCs

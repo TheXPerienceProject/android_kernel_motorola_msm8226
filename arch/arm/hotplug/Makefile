@@ -1,1 +1,2 @@
-obj-y := Alessa_Plug.o 
+
+obj-y	:= intelli_plug.o

@@ -270,6 +270,7 @@ core-y				+= arch/arm/kernel/ arch/arm/mm/ arch/arm/common/
 core-y				+= arch/arm/net/
 core-y				+= arch/arm/crypto/
 core-y				+= $(machdirs) $(platdirs)
+core-$(CONFIG_INTELLI_PLUG)	+= arch/arm/hotplug/
 
 core-$(CONFIG_ALESSA_HOTPLUG)	+= arch/arm/hotplug/
 
