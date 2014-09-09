@@ -265,6 +265,8 @@ core-y				+= arch/arm/kernel/ arch/arm/mm/ arch/arm/common/
 core-y				+= arch/arm/net/
 core-y				+= $(machdirs) $(platdirs)
 
+obj-$(CONFIG_INTELLI_PLUG) 	+= intelli_plug.o
+
 drivers-$(CONFIG_OPROFILE)      += arch/arm/oprofile/
 core-y				+= arch/arm/perfmon/
 
