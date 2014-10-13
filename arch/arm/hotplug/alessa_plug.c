@@ -30,7 +30,6 @@
 #include <linux/mutex.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include "acpuclock.h"
 #include "../mach-msm/acpuclock.h"
 
 #define KH_STP "2.1"
