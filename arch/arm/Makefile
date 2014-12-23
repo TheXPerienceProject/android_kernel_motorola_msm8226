@@ -275,6 +275,8 @@ core-y				+= arch/arm/net/
 core-y				+= arch/arm/crypto/
 core-y				+= $(machdirs) $(platdirs)
 
+core-$(CONFIG_ALESSA_HOTPLUG)	+= arch/arm/hotplug/
+
 drivers-$(CONFIG_OPROFILE)      += arch/arm/oprofile/
 core-y				+= arch/arm/perfmon/
 
