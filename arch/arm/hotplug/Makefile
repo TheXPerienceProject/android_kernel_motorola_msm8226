@@ -1,1 +1,1 @@
-obj-y	:= Alessa_plug.o 
+obj-y := alessa_plug.o 
