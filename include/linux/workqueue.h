@@ -403,6 +403,8 @@ extern void destroy_workqueue(struct workqueue_struct *wq);
 extern int queue_work(struct workqueue_struct *wq, struct work_struct *work);
 extern int queue_work_on(int cpu, struct workqueue_struct *wq,
 			struct work_struct *work);
+extern int mod_delayed_work(struct workqueue_struct *wq,
+			    struct delayed_work *work, unsigned long delay);
 extern int queue_delayed_work(struct workqueue_struct *wq,
 			struct delayed_work *work, unsigned long delay);
 extern int queue_delayed_work_on(int cpu, struct workqueue_struct *wq,

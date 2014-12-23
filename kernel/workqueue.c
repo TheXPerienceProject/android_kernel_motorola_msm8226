@@ -1129,6 +1129,32 @@ static void delayed_work_timer_fn(unsigned long __data)
 }
 
 /**
+ * mod_delayed_work - queue work on a workqueue after delay
+ * @wq: workqueue to use
+ * @dwork: delayable work to queue
+ * @delay: number of jiffies to wait before queueing
+ *
+ * Returns 0 if @work was already on a queue, non-zero otherwise.
+ *
+ */
+int mod_delayed_work(struct workqueue_struct *wq,
+			struct delayed_work *dwork, unsigned long delay)
+{
+	struct timer_list *timer = &dwork->timer;
+	struct work_struct *work = &dwork->work;
+
+	if (!test_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work)))
+		return queue_delayed_work_on(-1, wq, dwork, delay);
+
+	BUG_ON(!timer_pending(timer));
+
+	mod_timer(timer, jiffies + delay);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mod_delayed_work);
+
+/**
  * queue_delayed_work - queue work on a workqueue after delay
  * @wq: workqueue to use
  * @dwork: delayable work to queue
