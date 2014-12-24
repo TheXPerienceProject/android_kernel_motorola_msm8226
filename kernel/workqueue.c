@@ -2639,11 +2639,16 @@ EXPORT_SYMBOL_GPL(flush_work_sync);
  * Upon a successful return (>= 0), the caller "owns" WORK_STRUCT_PENDING bit,
  * so this work can't be re-armed in any way.
  */
-static int try_to_grab_pending(struct work_struct *work)
+static int try_to_grab_pending(struct work_struct *work,
+			       struct timer_list *timer)
 {
 	struct global_cwq *gcwq;
-	int ret = -1;
 
+ /* try to steal the timer if it exists */
+	if (timer && likely(del_timer(timer)))
+	return 1;
+
+ /* try to claim PENDING the normal way */
 	if (!test_and_set_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work)))
 		return 0;
 
@@ -2653,7 +2658,7 @@ static int try_to_grab_pending(struct work_struct *work)
 	 */
 	gcwq = get_work_gcwq(work);
 	if (!gcwq)
-		return ret;
+		return -EAGAIN;
 
 	spin_lock_irq(&gcwq->lock);
 	if (!list_empty(&work->entry)) {
@@ -2670,12 +2675,14 @@ static int try_to_grab_pending(struct work_struct *work)
 			cwq_dec_nr_in_flight(get_work_cwq(work),
 				get_work_color(work),
 				*work_data_bits(work) & WORK_STRUCT_DELAYED);
-			ret = 1;
+			
+			spin_unlock_irq(&gcwq->lock);
+			return 1;
 		}
 	}
 	spin_unlock_irq(&gcwq->lock);
 
-	return ret;
+	return -EAGAIN;
 }
 
 static bool __cancel_work_timer(struct work_struct *work,
@@ -2684,9 +2691,7 @@ static bool __cancel_work_timer(struct work_struct *work,
 	int ret;
 
 	do {
-		ret = (timer && likely(del_timer(timer)));
-		if (!ret)
-			ret = try_to_grab_pending(work);
+		ret = try_to_grab_pending(work, timer);
 		wait_on_work(work);
 	} while (unlikely(ret < 0));
 
