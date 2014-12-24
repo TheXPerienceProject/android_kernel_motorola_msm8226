@@ -356,18 +356,10 @@ CC		= $(srctree)/scripts/gcc-wrapper.py $(REAL_CC)
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
-CFLAGS_MODULE   = -DMODULE -fno-pic \
-		  -marm -mfpu=neon-vfpv4 \
-		  -mvectorize-with-neon-quad -fgcse-after-reload -fgcse-sm -fgcse-las \
-		  -ftree-loop-im -ftree-loop-ivcanon \
-		  -fivopts
+CFLAGS_MODULE   =
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
-CFLAGS_KERNEL	= -mtune=cortex-a7 \
-		  -marm -mfpu=neon-vfpv4 -mvectorize-with-neon-quad -fgcse-after-reload -fgcse-sm -fgcse-las \
-		  -ftree-loop-im -ftree-loop-ivcanon \
-		  -fivopts -ftree-vectorize \
-		  -ffast-math
+CFLAGS_KERNEL	=
 AFLAGS_KERNEL	=
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
@@ -383,18 +375,8 @@ KBUILD_CPPFLAGS := -D__KERNEL__
 
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
-		   -Wno-format-security -Wno-uninitialized\
-		   -Wno-unused-variable -Wno-error \
-		   -Wno-sequence-point -Wno-implicit\
-		   -Wno-unused-function \
-		   -mfpu=neon-vfpv4 -fgcse-after-reload -fgcse-las \
-		   -mvectorize-with-neon-quad \
-		   -fno-delete-null-pointer-checks \
-		   -march=armv7-a -mtune=cortex-a7 \
-		   -ffast-math -fsingle-precision-constant \
-		   -ftree-loop-im -ftree-loop-ivcanon \
-		   -fivopts -ftree-vectorize \
-		   -fgcse-lm -fgcse-sm -fsched-spec-load -fforce-addr
+		   -Wno-format-security \
+		   -fno-delete-null-pointer-checks
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__

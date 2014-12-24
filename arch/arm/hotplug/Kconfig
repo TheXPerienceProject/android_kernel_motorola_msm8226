@@ -10,10 +10,3 @@ config ALESSA_HOTPLUG_USE_CPU_UTIL
 	default n
 	help
 	  Alessa_plug cpu statistics utilization
-	  
-config MSM_RUN_QUEUE_STATS_USE_CPU_UTIL
-	bool "Enable collection and exporting of MSM Run Queue stats to userspace"
-	depends on (MSM_RUN_QUEUE_STATS)
-	help
-	  this option enable cpu utilization
-	

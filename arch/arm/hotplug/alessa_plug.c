@@ -32,7 +32,7 @@
 #include <linux/slab.h>
 #include "../mach-msm/acpuclock.h"
 
-#define KH_STP "2.5"
+#define KH_STP "2.1"
 
 #if defined(CONFIG_POWERSUSPEND)
 #include <linux/powersuspend.h>
@@ -59,6 +59,8 @@ struct hotplug_cpuinfo {
 
 static DEFINE_PER_CPU(struct hotplug_cpuinfo, od_hotplug_cpuinfo);
 
+static struct workqueue_struct *alessahp_wq;
+
 static struct delayed_work alessa_hotplug_work;
 
 static struct hotplug_tuners {
@@ -73,7 +75,7 @@ static struct hotplug_tuners {
 	unsigned int hotplug_suspend;
 	bool suspended;
 	bool force_cpu_up;
-	struct mutex klz_hotplug_mutex;
+	struct mutex alessa_hotplug_mutex;
 #endif
 } hotplug_tuners_ins = {
 	.hotplug_sampling_rate = 30,
@@ -97,40 +99,20 @@ static struct hotplug_tuners {
 #define DOWN_INDEX		(0)
 #define UP_INDEX		(1)
 
-#define RQ_AVG_TIMER_RATE	10
-
 struct runqueue_data {
 	unsigned int nr_run_avg;
-	unsigned int update_rate;
 	int64_t last_time;
 	int64_t total_time;
-	struct delayed_work work;
-	struct workqueue_struct *nr_run_wq;
 	spinlock_t lock;
 };
 
 static struct runqueue_data *rq_data;
-static void rq_work_fn(struct work_struct *work);
 
-static void start_rq_work(void)
+static void init_rq_avg_stats(void)
 {
 	rq_data->nr_run_avg = 0;
 	rq_data->last_time = 0;
 	rq_data->total_time = 0;
-	if (rq_data->nr_run_wq == NULL)
-		rq_data->nr_run_wq =
-			create_singlethread_workqueue("nr_run_avg");
-
-	mod_delayed_work(rq_data->nr_run_wq, &rq_data->work,
-			   msecs_to_jiffies(rq_data->update_rate));
-	return;
-}
-
-static void stop_rq_work(void)
-{
-	if (rq_data->nr_run_wq)
-		cancel_delayed_work(&rq_data->work);
-	return;
 }
 
 static int __init init_rq_avg(void)
@@ -141,8 +123,6 @@ static int __init init_rq_avg(void)
 		return -ENOMEM;
 	}
 	spin_lock_init(&rq_data->lock);
-	rq_data->update_rate = RQ_AVG_TIMER_RATE;
-	INIT_DEFERRABLE_WORK(&rq_data->work, rq_work_fn);
 
 	return 0;
 }
@@ -152,12 +132,15 @@ static void exit_rq_avg(void)
 	kfree(rq_data);
 }
 
-static void rq_work_fn(struct work_struct *work)
+static unsigned int get_nr_run_avg(void)
 {
 	int64_t time_diff = 0;
 	int64_t nr_run = 0;
 	unsigned long flags = 0;
-	int64_t cur_time = ktime_to_ns(ktime_get());
+	int64_t cur_time;
+	unsigned int nr_run_avg;
+
+	cur_time = ktime_to_ns(ktime_get());
 
 	spin_lock_irqsave(&rq_data->lock, flags);
 
@@ -179,25 +162,15 @@ static void rq_work_fn(struct work_struct *work)
 	rq_data->total_time += time_diff;
 	rq_data->last_time = cur_time;
 
-	if (rq_data->update_rate != 0)
-		mod_delayed_work(rq_data->nr_run_wq, &rq_data->work,
-				   msecs_to_jiffies(rq_data->update_rate));
-
-	spin_unlock_irqrestore(&rq_data->lock, flags);
-}
-
-static unsigned int get_nr_run_avg(void)
-{
-	unsigned int nr_run_avg;
-	unsigned long flags = 0;
-
-	spin_lock_irqsave(&rq_data->lock, flags);
 	nr_run_avg = rq_data->nr_run_avg;
 	rq_data->nr_run_avg = 0;
+
 	spin_unlock_irqrestore(&rq_data->lock, flags);
 
 	return nr_run_avg;
 }
+
+typedef enum {IDLE, ON, OFF} HOTPLUG_STATUS;
 
 static void __ref hotplug_work_fn(struct work_struct *work)
 {
@@ -212,8 +185,9 @@ static void __ref hotplug_work_fn(struct work_struct *work)
 	defined(CONFIG_HAS_EARLYSUSPEND)
 	bool force_up = hotplug_tuners_ins.force_cpu_up;
 #endif
+	HOTPLUG_STATUS hotplug_onoff[NR_CPUS] = {IDLE, IDLE, IDLE, IDLE};
+	int delay;
 	int io_busy = hotplug_tuners_ins.hp_io_is_busy;
-	cpumask_var_t cpus;
 
 	rq_avg = get_nr_run_avg();
 
@@ -225,26 +199,23 @@ static void __ref hotplug_work_fn(struct work_struct *work)
 #endif
 		upmaxcoreslimit = hotplug_tuners_ins.maxcoreslimit;
 
-	cpumask_copy(cpus, cpu_online_mask);
+	get_online_cpus();
 	online_cpus = num_online_cpus();
-
-	for_each_cpu(cpu, cpus) {
-		struct hotplug_cpuinfo *pcpu_info =
-				&per_cpu(od_hotplug_cpuinfo, cpu);
+	for_each_online_cpu(cpu) {
+		struct hotplug_cpuinfo *pcpu_info = &per_cpu(od_hotplug_cpuinfo, cpu);
 		unsigned int upcpu = (cpu + 1);
 #ifndef CONFIG_ALESSA_HOTPLUG_USE_CPU_UTIL
 		u64 cur_wall_time, cur_idle_time;
 		unsigned int wall_time, idle_time;
 #endif
-		unsigned int cur_load = 0;
+		int cur_load = -1;
 		unsigned int cur_freq = 0;
 		bool check_up = false, check_down = false;
 
 #ifdef CONFIG_ALESSA_HOTPLUG_USE_CPU_UTIL
 		cur_load = cpufreq_quick_get_util(cpu);
 #else
-		cur_idle_time = get_cpu_idle_time(
-				cpu, &cur_wall_time, io_busy);
+		cur_idle_time = get_cpu_idle_time(cpu, &cur_wall_time, io_busy);
 
 		wall_time = (unsigned int)
 				(cur_wall_time -
@@ -257,103 +228,99 @@ static void __ref hotplug_work_fn(struct work_struct *work)
 		pcpu_info->prev_cpu_idle = cur_idle_time;
 
 		/* if wall_time < idle_time, evaluate cpu load next time */
-		if (wall_time < idle_time)
-			continue;
-		/*
-		 * if wall_time is equal to idle_time,
-		 * cpu_load is equal to 0
-		 */
-		cur_load = wall_time > idle_time ? (100 *
-			(wall_time - idle_time)) / wall_time : 0;
+		if (wall_time >= idle_time) {
+			/*
+			 * if wall_time is equal to idle_time,
+			 * cpu_load is equal to 0
+			 */
+			cur_load = wall_time > idle_time ? (100 *
+				(wall_time - idle_time)) / wall_time : 0;
+		}
 #endif
 
-		/* get the cpu current frequency */
-		/* cur_freq = acpuclk_get_rate(cpu); */
-		cur_freq = cpufreq_quick_get(cpu);
+		/* if cur_load < 0, evaluate cpu load next time */
+		if (cur_load >= 0) {
+			/* get the cpu current frequency */
+			/* cur_freq = acpuclk_get_rate(cpu); */
+			cur_freq = cpufreq_quick_get(cpu);
 
-		if (pcpu_info->cur_up_rate > pcpu_info->up_rate)
-			pcpu_info->cur_up_rate = 1;
-
-		if (pcpu_info->cur_down_rate > pcpu_info->down_rate)
-			pcpu_info->cur_down_rate = 1;
-
-		check_up = (pcpu_info->cur_up_rate % pcpu_info->up_rate == 0);
-		check_down = (pcpu_info->cur_down_rate %
-					pcpu_info->down_rate == 0);
-
-		if (cpu > 0
-			&& ((online_cpus - offline_cpu) > upmaxcoreslimit)) {
+			if (pcpu_info->cur_up_rate > pcpu_info->up_rate)
 				pcpu_info->cur_up_rate = 1;
+
+			if (pcpu_info->cur_down_rate > pcpu_info->down_rate)
 				pcpu_info->cur_down_rate = 1;
-				++offline_cpu;
-				cpu_down(cpu);
-				continue;
+
+			check_up = (pcpu_info->cur_up_rate % pcpu_info->up_rate == 0);
+			check_down = (pcpu_info->cur_down_rate % pcpu_info->down_rate == 0);
+
+			if (cpu > 0 
+				&& ((online_cpus - offline_cpu) > upmaxcoreslimit)) {
+					hotplug_onoff[cpu] = OFF;
+					pcpu_info->cur_up_rate = 1;
+					pcpu_info->cur_down_rate = 1;
+					++offline_cpu;
+					continue;
 #if defined(CONFIG_POWERSUSPEND) || \
-		defined(CONFIG_HAS_EARLYSUSPEND)
-		} else if (force_up == true ||
-				(online_cpus + online_cpu) < min_cpus_online) {
+	defined(CONFIG_HAS_EARLYSUSPEND)
+			} else if (force_up == true || (online_cpus + online_cpu) < min_cpus_online) {
 #else
-		} else if ((online_cpus + online_cpu) < min_cpus_online) {
+			} else if ((online_cpus + online_cpu) < min_cpus_online) {
 #endif
-				if (upcpu < upmaxcoreslimit) {
-					if (cpu_is_offline(upcpu)) {
+					if (upcpu < upmaxcoreslimit) {
+						if (!cpu_online(upcpu)) {
+							hotplug_onoff[upcpu] = ON;
+							pcpu_info->cur_up_rate = 1;
+							pcpu_info->cur_down_rate = 1;
+							++online_cpu;
+						}
+					}
+					continue;
+			}
+
+			if (upcpu > 0
+				&& upcpu < upmaxcoreslimit
+				&& (!cpu_online(upcpu))
+				&& (online_cpus + online_cpu) < upmaxcoreslimit
+ 			    && cur_load >= pcpu_info->up_load 
+				&& cur_freq >= pcpu_info->up_freq 
+				&& rq_avg > pcpu_info->up_rq) {
+					++pcpu_info->cur_up_rate;
+					if (check_up) {
+#if 0
+						pr_info("CPU[%u], UPCPU[%u], cur_freq[%u], cur_load[%u], rq_avg[%u], up_rate[%u]\n", cpu, upcpu, cur_freq, cur_load, rq_avg, pcpu_info->cur_up_rate);
+#endif
+						hotplug_onoff[upcpu] = ON;
 						pcpu_info->cur_up_rate = 1;
 						pcpu_info->cur_down_rate = 1;
 						++online_cpu;
-						cpu_up(upcpu);
 					}
-				}
-				continue;
+			} else if (cpu >= min_cpus_online
+					   && (cur_load < pcpu_info->down_load 
+						   || (cur_freq <= pcpu_info->down_freq
+						       && rq_avg <= pcpu_info->down_rq))) {
+							++pcpu_info->cur_down_rate;
+							if (check_down) {
+#if 0
+								pr_info("CPU[%u], cur_freq[%u], cur_load[%u], rq_avg[%u], down_rate[%u]\n", cpu, cur_freq, cur_load, rq_avg, pcpu_info->cur_down_rate);
+#endif
+								hotplug_onoff[cpu] = OFF;
+								pcpu_info->cur_up_rate = 1;
+								pcpu_info->cur_down_rate = 1;
+								++offline_cpu;
+							}
+			} else {
+				pcpu_info->cur_up_rate = 1;
+				pcpu_info->cur_down_rate = 1;
+			}
 		}
+	}
+	put_online_cpus();
 
-		if (upcpu > 0
-			&& upcpu < upmaxcoreslimit
-			&& (cpu_is_offline(upcpu))
-			&& (online_cpus + online_cpu) < upmaxcoreslimit
-		    && cur_load >= pcpu_info->up_load
-			&& cur_freq >= pcpu_info->up_freq
-			&& rq_avg > pcpu_info->up_rq) {
-				++pcpu_info->cur_up_rate;
-				if (check_up) {
-#if 0
-					pr_info("CPU[%u], UPCPU[%u], \
-						cur_freq[%u], cur_load[%u], \
-						rq_avg[%u], up_rate[%u]\n",
-						cpu, upcpu, cur_freq,
-						cur_load, rq_avg,
-						pcpu_info->cur_up_rate);
-#endif
-					pcpu_info->cur_up_rate = 1;
-					pcpu_info->cur_down_rate = 1;
-					++online_cpu;
-					cpu_up(upcpu);
-				}
-		} else if (cpu >= min_cpus_online && (
-				cur_load < pcpu_info->down_load
-				|| (cur_freq <= pcpu_info->down_freq
-				&& rq_avg <= pcpu_info->down_rq))) {
-					++pcpu_info->cur_down_rate;
-					if (check_down) {
-#if 0
-						pr_info("CPU[%u], \
-							cur_freq[%u], \
-							cur_load[%u], \
-							rq_avg[%u], \
-							down_rate[%u]\n",
-							cpu, cur_freq,
-							cur_load, rq_avg,
-							pcpu_info->
-							cur_down_rate);
-#endif
-						pcpu_info->cur_up_rate = 1;
-						pcpu_info->cur_down_rate = 1;
-						++offline_cpu;
-						cpu_down(cpu);
-					}
-		} else {
-			pcpu_info->cur_up_rate = 1;
-			pcpu_info->cur_down_rate = 1;
-		}
+	for (cpu = 1; cpu < NR_CPUS; cpu++) {
+		if (hotplug_onoff[cpu] == ON)
+			cpu_up(cpu);
+		else if (hotplug_onoff[cpu] == OFF)
+			cpu_down(cpu);
 	}
 
 #if defined(CONFIG_POWERSUSPEND) || \
@@ -361,10 +328,18 @@ static void __ref hotplug_work_fn(struct work_struct *work)
 	if (force_up == true)
 		hotplug_tuners_ins.force_cpu_up = false;
 #endif
-	mod_delayed_work_on(0, system_wq,
-				&alessa_hotplug_work,
-				msecs_to_jiffies(
-				hotplug_tuners_ins.hotplug_sampling_rate));
+
+	delay = msecs_to_jiffies(hotplug_tuners_ins.hotplug_sampling_rate);
+
+/*	if (num_online_cpus() > 1) {
+#if 0
+		pr_info("NR_CPUS[%u], jiffies[%ld], delay[%u]\n", num_online_cpus(), jiffies, delay);
+#endif
+		delay -= jiffies % delay;
+	}
+*/
+	queue_delayed_work_on(0, alessahp_wq, &alessa_hotplug_work,
+							  delay);
 }
 
 #if defined(CONFIG_POWERSUSPEND) || defined(CONFIG_HAS_EARLYSUSPEND)
@@ -376,11 +351,10 @@ static void __ref alessa_hotplug_early_suspend(struct early_suspend *handler)
 {
 	if (hotplug_tuners_ins.hotplug_enable > 0
 		&& hotplug_tuners_ins.hotplug_suspend == 1) { 
-			mutex_lock(&hotplug_tuners_ins.klz_hotplug_mutex);
+			mutex_lock(&hotplug_tuners_ins.alessa_hotplug_mutex);
 			hotplug_tuners_ins.suspended = true;
-			mutex_unlock(&hotplug_tuners_ins.klz_hotplug_mutex);
+			mutex_unlock(&hotplug_tuners_ins.alessa_hotplug_mutex);
 	}
-	stop_rq_work();
 }
 
 #ifdef CONFIG_POWERSUSPEND
@@ -392,13 +366,12 @@ static void __ref alessa_hotplug_late_resume(
 {
 	if (hotplug_tuners_ins.hotplug_enable > 0
 		&& hotplug_tuners_ins.hotplug_suspend == 1) {
-			mutex_lock(&hotplug_tuners_ins.klz_hotplug_mutex);
+			mutex_lock(&hotplug_tuners_ins.alessa_hotplug_mutex);
 			hotplug_tuners_ins.suspended = false;
 			// wake up everyone
 			hotplug_tuners_ins.force_cpu_up = true;
-			mutex_unlock(&hotplug_tuners_ins.klz_hotplug_mutex);
+			mutex_unlock(&hotplug_tuners_ins.alessa_hotplug_mutex);
 	}
-	start_rq_work();
 }
 
 #ifdef CONFIG_POWERSUSPEND
@@ -420,8 +393,16 @@ static int hotplug_start(void)
 	unsigned int cpu;
 	int ret = 0;
 
+	alessahp_wq = alloc_workqueue("alessahp_wq", WQ_HIGHPRI, 0);
+
+	if (!alessahp_wq) {
+		printk(KERN_ERR "Failed to create alessa hotplug workqueue\n");
+		return -EFAULT;
+	}
+
 	ret = init_rq_avg();
 	if (ret) {
+		destroy_workqueue(alessahp_wq);
 		return ret;
 	}
 
@@ -431,30 +412,27 @@ static int hotplug_start(void)
 	hotplug_tuners_ins.force_cpu_up = false;
 #endif
 
+	get_online_cpus();
 	for_each_possible_cpu(cpu) {
-		struct hotplug_cpuinfo *pcpu_info =
-				&per_cpu(od_hotplug_cpuinfo, cpu);
+		struct hotplug_cpuinfo *pcpu_info = &per_cpu(od_hotplug_cpuinfo, cpu);
 
 #ifndef CONFIG_ALESSA_HOTPLUG_USE_CPU_UTIL
 		pcpu_info->prev_cpu_idle = get_cpu_idle_time(cpu,
-				&pcpu_info->prev_cpu_wall,
-				hotplug_tuners_ins.hp_io_is_busy);
+				&pcpu_info->prev_cpu_wall, hotplug_tuners_ins.hp_io_is_busy);
 #endif
 		pcpu_info->cur_up_rate = 1;
 		pcpu_info->cur_down_rate = 1;
 	}
+	put_online_cpus();
 
-	start_rq_work();
-
-	INIT_DEFERRABLE_WORK(&alessa_hotplug_work, hotplug_work_fn);
-	mod_delayed_work_on(0, system_wq,
-				&alessa_hotplug_work,
-				msecs_to_jiffies(
-				hotplug_tuners_ins.hotplug_sampling_rate));
+	init_rq_avg_stats();
+	INIT_DELAYED_WORK(&alessa_hotplug_work, hotplug_work_fn);
+	queue_delayed_work_on(0, alessahp_wq, &alessa_hotplug_work,
+						msecs_to_jiffies(hotplug_tuners_ins.hotplug_sampling_rate));
 
 #if defined(CONFIG_POWERSUSPEND) || \
 	defined(CONFIG_HAS_EARLYSUSPEND)
-	mutex_init(&hotplug_tuners_ins.klz_hotplug_mutex);
+	mutex_init(&hotplug_tuners_ins.alessa_hotplug_mutex);
 #endif
 
 #if defined(CONFIG_POWERSUSPEND)
@@ -468,29 +446,29 @@ static int hotplug_start(void)
 
 static void hotplug_stop(void)
 {
+#if defined(CONFIG_POWERSUSPEND) || \
+	defined(CONFIG_HAS_EARLYSUSPEND)
+	mutex_destroy(&hotplug_tuners_ins.alessa_hotplug_mutex);
+#endif
+
 #if defined(CONFIG_POWERSUSPEND)
 	unregister_power_suspend(&alessa_hotplug_power_suspend_driver);
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 	unregister_early_suspend(&alessa_hotplug_early_suspend_driver);
 #endif  /* CONFIG_POWERSUSPEND || CONFIG_HAS_EARLYSUSPEND */
 
-#if defined(CONFIG_POWERSUSPEND) || \
-	defined(CONFIG_HAS_EARLYSUSPEND)
-	mutex_destroy(&hotplug_tuners_ins.klz_hotplug_mutex);
-#endif
-
 	cancel_delayed_work_sync(&alessa_hotplug_work);
 
-	stop_rq_work();
-
 	exit_rq_avg();
+
+	destroy_workqueue(alessahp_wq);
 }
 
 #define show_one(file_name, object)					\
 static ssize_t show_##file_name						\
 (struct kobject *kobj, struct attribute *attr, char *buf)		\
 {									\
-	return sprintf(buf, "%d\n",					\
+	return sprintf(buf, "%d\n", \
 			hotplug_tuners_ins.object);			\
 }
 
@@ -505,16 +483,16 @@ show_one(hp_io_is_busy, hp_io_is_busy);
 show_one(hotplug_suspend, hotplug_suspend);
 #endif
 
-#define show_pcpu_param(file_name, var_name, num_core)			\
-static ssize_t show_##file_name						\
+#define show_pcpu_param(file_name, var_name, num_core)		\
+static ssize_t show_##file_name		\
 (struct kobject *kobj, struct attribute *attr, char *buf)		\
 {									\
-	struct hotplug_cpuinfo *pcpu_info =				\
-			&per_cpu(od_hotplug_cpuinfo, num_core - 1);	\
-	return sprintf(buf, "%u\n",					\
-			pcpu_info->var_name);				\
+	struct hotplug_cpuinfo *pcpu_info = &per_cpu(od_hotplug_cpuinfo, num_core - 1); \
+	return sprintf(buf, "%u\n", \
+			pcpu_info->var_name);		\
 }
 
+/* hotplug freq */
 show_pcpu_param(hotplug_freq_1_1, up_freq, 1);
 show_pcpu_param(hotplug_freq_2_1, up_freq, 2);
 show_pcpu_param(hotplug_freq_3_1, up_freq, 3);
@@ -543,26 +521,26 @@ show_pcpu_param(hotplug_rate_2_0, down_rate, 2);
 show_pcpu_param(hotplug_rate_3_0, down_rate, 3);
 show_pcpu_param(hotplug_rate_4_0, down_rate, 4);
 
-#define store_pcpu_param(file_name, var_name, num_core)			\
-static ssize_t store_##file_name					\
+#define store_pcpu_param(file_name, var_name, num_core)		\
+static ssize_t store_##file_name		\
 (struct kobject *kobj, struct attribute *attr,				\
 	const char *buf, size_t count)					\
 {									\
 	unsigned int input;						\
-	struct hotplug_cpuinfo *pcpu_info;				\
-	int ret;							\
-									\
-	ret = sscanf(buf, "%u", &input);				\
-	if (ret != 1)							\
-		return -EINVAL;						\
-									\
-	pcpu_info = &per_cpu(od_hotplug_cpuinfo, num_core - 1);		\
-									\
-	if (input == pcpu_info->var_name) {				\
+	struct hotplug_cpuinfo *pcpu_info; 		\
+	int ret;									\
+													\
+	ret = sscanf(buf, "%u", &input);					\
+	if (ret != 1)											\
+		return -EINVAL;										\
+																\
+	pcpu_info = &per_cpu(od_hotplug_cpuinfo, num_core - 1); 	\
+															\
+	if (input == pcpu_info->var_name) {		\
 		return count;						\
 	}								\
-									\
-	pcpu_info->var_name = input;					\
+										\
+	pcpu_info->var_name = input;			\
 	return count;							\
 }
 
@@ -768,11 +746,9 @@ static ssize_t store_hp_io_is_busy(struct kobject *a, struct attribute *b,
 	/* we need to re-evaluate prev_cpu_idle */
 	if (hotplug_tuners_ins.hotplug_enable > 0) {
 		for_each_online_cpu(j) {
-			struct hotplug_cpuinfo *pcpu_info =
-					&per_cpu(od_hotplug_cpuinfo, j);
+			struct hotplug_cpuinfo *pcpu_info = &per_cpu(od_hotplug_cpuinfo, j);
 			pcpu_info->prev_cpu_idle = get_cpu_idle_time(j,
-					&pcpu_info->prev_cpu_wall,
-					hotplug_tuners_ins.hp_io_is_busy);
+					&pcpu_info->prev_cpu_wall, hotplug_tuners_ins.hp_io_is_busy);
 		}
 	}
 #endif
@@ -786,6 +762,11 @@ static ssize_t store_hp_io_is_busy(struct kobject *a, struct attribute *b,
  */
 #if defined(CONFIG_POWERSUSPEND) || \
 	defined(CONFIG_HAS_EARLYSUSPEND)
+/*
+ * hotplug_suspend control
+ * if set = 1 hotplug will sleep,
+ * if set = 0, then hoplug will be active all the time.
+ */
 static ssize_t store_hotplug_suspend(struct kobject *a,
 				struct attribute *b,
 				const char *buf, size_t count)
@@ -872,6 +853,7 @@ static int __init alessa_hotplug_init(void)
 	int ret;
 	unsigned int cpu;
 	unsigned int hotplug_freq[NR_CPUS][2] = {
+/* here if you port to other device you need set the CPU freq to our device*/
 #ifdef CONFIG_ARCH_MSM8226
 #ifdef CONFIG_CPU_OVERCLOCK
 	{0, 1593600},
@@ -925,8 +907,7 @@ static int __init alessa_hotplug_init(void)
 
 	/* INITIALIZE PCPU VARS */
 	for_each_possible_cpu(cpu) {
-		struct hotplug_cpuinfo *pcpu_info =
-				&per_cpu(od_hotplug_cpuinfo, cpu);
+		struct hotplug_cpuinfo *pcpu_info = &per_cpu(od_hotplug_cpuinfo, cpu);
 
 		pcpu_info->up_freq = hotplug_freq[cpu][UP_INDEX];
 		pcpu_info->down_freq = hotplug_freq[cpu][DOWN_INDEX];
