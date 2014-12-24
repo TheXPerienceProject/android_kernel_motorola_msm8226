@@ -1127,7 +1127,7 @@ void delayed_work_timer_fn(unsigned long __data)
 
 	__queue_work(smp_processor_id(), cwq->wq, &dwork->work);
 }
-EXPORT_SYMBOL_GPL(delayed_work_timer_fn);
+EXPORT_SYMBOL(delayed_work_timer_fn);
 
 /**
  * queue_delayed_work_on - queue work on specific CPU after delay
@@ -1200,7 +1200,7 @@ bool queue_delayed_work(struct workqueue_struct *wq,
 
 	return queue_delayed_work_on(-1, wq, dwork, delay);
 }
-EXPORT_SYMBOL_GPL(queue_delayed_work);
+EXPORT_SYMBOL(queue_delayed_work);
 
  /**
  * mod_delayed_work_on - modify delay of or queue a delayed work on specific CPU
@@ -2686,7 +2686,7 @@ EXPORT_SYMBOL_GPL(flush_work_sync);
  * Upon a successful return (>= 0), the caller "owns" WORK_STRUCT_PENDING bit,
  * so this work can't be re-armed in any way.
  */
-static int try_to_grab_pending(struct work_struct *work)
+int try_to_grab_pending(struct work_struct *work)
 {
 	struct global_cwq *gcwq;
 	int ret = -1;
@@ -2862,7 +2862,7 @@ EXPORT_SYMBOL(schedule_work);
  * workqueue on the specified CPU.
  */
 bool schedule_delayed_work_on(int cpu, struct delayed_work *dwork,
-			struct delayed_work *dwork, unsigned long delay)
+				unsigned long delay)
 {
 	return queue_delayed_work_on(cpu, system_wq, dwork, delay);
 }
@@ -3883,7 +3883,11 @@ bool freeze_workqueues_busy(void)
 		 * to peek without lock.
 		 */
 		list_for_each_entry(wq, &workqueues, list) {
-			struct cpu_workqueue_struct *cwq = get_cwq(cpu, wq);
+			struct cpu_workqueue_struct *cwq;
+			if (cpu < CONFIG_NR_CPUS)
+				cwq = get_cwq(cpu, wq);
+			else
+				continue;
 
 			if (!cwq || !(wq->flags & WQ_FREEZABLE))
 				continue;
@@ -3929,7 +3933,11 @@ void thaw_workqueues(void)
 		gcwq->flags &= ~GCWQ_FREEZING;
 
 		list_for_each_entry(wq, &workqueues, list) {
-			struct cpu_workqueue_struct *cwq = get_cwq(cpu, wq);
+			struct cpu_workqueue_struct *cwq;
+			if (cpu < CONFIG_NR_CPUS)
+				cwq = get_cwq(cpu, wq);
+			else
+				continue;
 
 			if (!cwq || !(wq->flags & WQ_FREEZABLE))
 				continue;
