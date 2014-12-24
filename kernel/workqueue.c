@@ -1120,13 +1120,14 @@ queue_work_on(int cpu, struct workqueue_struct *wq, struct work_struct *work)
 }
 EXPORT_SYMBOL_GPL(queue_work_on);
 
-static void delayed_work_timer_fn(unsigned long __data)
+void delayed_work_timer_fn(unsigned long __data)
 {
 	struct delayed_work *dwork = (struct delayed_work *)__data;
 	struct cpu_workqueue_struct *cwq = get_work_cwq(&dwork->work);
 
 	__queue_work(smp_processor_id(), cwq->wq, &dwork->work);
 }
+EXPORT_SYMBOL_GPL(delayed_work_timer_fn);
 
 /**
  * queue_delayed_work - queue work on a workqueue after delay
@@ -1165,6 +1166,8 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq,
 	if (!test_and_set_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work))) {
 		unsigned int lcpu;
 
+		WARN_ON_ONCE(timer->function != delayed_work_timer_fn ||
+			     timer->data != (unsigned long)dwork);
 		WARN_ON_ONCE(timer_pending(timer));
 		WARN_ON_ONCE(!list_empty(&work->entry));
 
@@ -1188,8 +1191,6 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq,
 		set_work_cwq(work, get_cwq(lcpu, wq), 0);
 
 		timer->expires = jiffies + delay;
-		timer->data = (unsigned long)dwork;
-		timer->function = delayed_work_timer_fn;
 
 		if (unlikely(cpu >= 0))
 			add_timer_on(timer, cpu);
@@ -1200,57 +1201,6 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq,
 	return ret;
 }
 EXPORT_SYMBOL_GPL(queue_delayed_work_on);
-
- /**
- * mod_delayed_work_on - modify delay of or queue a delayed work on specific CPU
- * @cpu: CPU number to execute work on
- * @wq: workqueue to use
- * @dwork: work to queue
- * @delay: number of jiffies to wait before queueing
- *
- * If @dwork is idle, equivalent to queue_delayed_work_on(); otherwise,
- * modify @dwork's timer so that it expires after @delay.  If @delay is
- * zero, @work is guaranteed to be scheduled immediately regardless of its
- * current state.
- *
- * Returns %false if @dwork was idle and queued, %true if @dwork was
- * pending and its timer was modified.
- */
-bool mod_delayed_work_on(int cpu, struct workqueue_struct *wq,
-			 struct delayed_work *dwork, unsigned long delay)
-{
-	int ret;
-
-	preempt_disable();
-
-	do {
-		ret = try_to_grab_pending(&dwork->work, &dwork->timer);
-	} while (unlikely(ret == -EAGAIN));
-
-	if (likely(ret >= 0))
-		__queue_delayed_work(cpu, wq, dwork, delay);
-
-	preempt_enable();
-
-	/* -ENOENT from try_to_grab_pending() becomes %true */
-	return ret;
-}
-EXPORT_SYMBOL_GPL(mod_delayed_work_on);
-
-/**
- * mod_delayed_work - modify delay of or queue a delayed work
- * @wq: workqueue to use
- * @dwork: work to queue
- * @delay: number of jiffies to wait before queueing
- *
- * mod_delayed_work_on() on local CPU.
- */
-bool mod_delayed_work(struct workqueue_struct *wq, struct delayed_work *dwork,
-		      unsigned long delay)
-{
-	return mod_delayed_work_on(WORK_CPU_UNBOUND, wq, dwork, delay);
-}
-EXPORT_SYMBOL_GPL(mod_delayed_work);
 
 /**
  * worker_enter_idle - enter idle state
@@ -2679,29 +2629,15 @@ bool flush_work_sync(struct work_struct *work)
 }
 EXPORT_SYMBOL_GPL(flush_work_sync);
 
-/**
- * try_to_grab_pending - steal work item from worklist
- * @work: work item to steal
- *
- * Try to grab PENDING bit of @work.  This function can handle @work in any
- * stable state - idle, on timer or on worklist.  Return values are
- *
- *  1		if @work was pending and we successfully stole PENDING
- *  0		if @work was idle and we claimed PENDING
- *  -EAGAIN	if PENDING couldn't be grabbed at the moment, safe to busy-retry
- *
- * On >= 0 return, the caller owns @work's PENDING bit.
+/*
+ * Upon a successful return (>= 0), the caller "owns" WORK_STRUCT_PENDING bit,
+ * so this work can't be re-armed in any way.
  */
-static int try_to_grab_pending(struct work_struct *work,
-			       struct timer_list *timer)
+static int try_to_grab_pending(struct work_struct *work)
 {
 	struct global_cwq *gcwq;
+	int ret = -1;
 
-	/* try to steal the timer if it exists */
-	if (timer && likely(del_timer(timer)))
-		return 1;
-
-	/* try to claim PENDING the normal way */
 	if (!test_and_set_bit(WORK_STRUCT_PENDING_BIT, work_data_bits(work)))
 		return 0;
 
@@ -2711,7 +2647,7 @@ static int try_to_grab_pending(struct work_struct *work,
 	 */
 	gcwq = get_work_gcwq(work);
 	if (!gcwq)
-		return -EAGAIN;
+		return ret;
 
 	spin_lock_irq(&gcwq->lock);
 	if (!list_empty(&work->entry)) {
@@ -2728,14 +2664,12 @@ static int try_to_grab_pending(struct work_struct *work,
 			cwq_dec_nr_in_flight(get_work_cwq(work),
 				get_work_color(work),
 				*work_data_bits(work) & WORK_STRUCT_DELAYED);
-
-			spin_unlock_irq(&gcwq->lock);
-			return 1;
+			ret = 1;
 		}
 	}
 	spin_unlock_irq(&gcwq->lock);
 
-	return -EAGAIN;
+	return ret;
 }
 
 static bool __cancel_work_timer(struct work_struct *work,
@@ -2744,7 +2678,9 @@ static bool __cancel_work_timer(struct work_struct *work,
 	int ret;
 
 	do {
-		ret = try_to_grab_pending(work, timer);
+		ret = (timer && likely(del_timer(timer)));
+		if (!ret)
+			ret = try_to_grab_pending(work);
 		wait_on_work(work);
 	} while (unlikely(ret < 0));
 
