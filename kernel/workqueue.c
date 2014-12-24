@@ -1203,7 +1203,7 @@ int queue_delayed_work_on(int cpu, struct workqueue_struct *wq,
 	struct work_struct *work = &dwork->work;
 	      __queue_delayed_work(cpu, wq, dwork, delay);
 		ret = 1;
-	}
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(queue_delayed_work_on);
