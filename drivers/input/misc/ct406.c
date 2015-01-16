@@ -234,6 +234,7 @@ static u32 ct406_debug = 0x00000000;
 #include <linux/input/sweep2wake.h>
 #include <linux/input/doubletap2wake.h>
 bool ct_suspended = false;
+bool ct_suspend = false;
 bool prox_covered = false;
 bool forced = true;
 extern void touch_suspend(void);
@@ -590,7 +591,7 @@ static void ct406_prox_mode_covered(struct ct406_data *ct)
 	ct406_write_prox_thresholds(ct);
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 	prox_covered = true;
-	if (ct_supended){
+	if (ct_suspended){
 		touch_suspend();
 	}
 #endif
