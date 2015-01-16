@@ -566,7 +566,7 @@ static void ct406_prox_mode_uncovered(struct ct406_data *ct)
 		piht = ct->pdata_max;
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 	prox_covered = false;
-	if (ct_suspend)
+	if (ct_suspended)
 		touch_resume();
 #endif
 	ct->prox_mode = CT406_PROX_MODE_UNCOVERED;
@@ -1491,7 +1491,7 @@ static void ct_power_suspend(struct power_suspend *h) {
 	 struct ct406_data *ct = ct406_misc_data;
 
  	ct_suspended = true;
-	ifif (!ct->prox_enabled && (s2w_switch > 0 || dt2w_switch > 0)) {
+	if (!ct->prox_enabled && (s2w_switch > 0 || dt2w_switch > 0)) {
 		forced = true;
 		 ct406_enable_prox(ct);
 	 }
