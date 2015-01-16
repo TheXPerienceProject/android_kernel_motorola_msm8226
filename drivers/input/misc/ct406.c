@@ -590,7 +590,7 @@ static void ct406_prox_mode_covered(struct ct406_data *ct)
 	ct406_write_prox_thresholds(ct);
 #ifdef CONFIG_TOUCHSCREEN_PREVENT_SLEEP
 	prox_covered = true;
-	if (ct_supend){
+	if (ct_supended){
 		touch_suspend();
 	}
 #endif
