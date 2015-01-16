@@ -41,6 +41,7 @@ struct notifier_block wfnotif;
 static long long wake_timeout = 60;
 static struct alarm wakefunc_rtc;
 static bool wakefunc_triggered = false;
+bool pwrkey_pressed = false;
 
 static void wake_presspwr(struct work_struct * wake_presspwr_work) {
 	if (!mutex_trylock(&pwrkeyworklock))
