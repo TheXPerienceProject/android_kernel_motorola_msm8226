@@ -41,6 +41,8 @@ static struct msm_bus_paths bw_level_tbl_8226[] = {
 	[5] = BW_MBPS(2128), /* At least 266 MHz on bus. */
 	[6] = BW_MBPS(3200), /* At least 400 MHz on bus. */
 	[7] = BW_MBPS(4264), /* At least 533 MHz on bus. */
+	[8] = BW_MBPS(4528), /* At least 566 MHz on bus. */
+
 };
 
 static struct msm_bus_paths bw_level_tbl_8610[] = {
@@ -74,6 +76,21 @@ static struct clkctl_acpu_speed acpu_freq_tbl_8226_1p1[] = {
 	{ 0 }
 };
 
+#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
+static struct clkctl_acpu_speed acpu_freq_tbl_8226_1p2[] = {
+#ifdef CPU_UNDERCLOCK
+	{ 1,  192000, ACPUPLL, 5, 2,   1100000,    1100000, 3 },
+#endif
+	{ 1,  300000, PLL0,    4, 2,   1140000,    1140000, 4 },
+	{ 1,  384000, ACPUPLL, 5, 2,   1140000,    1140000, 4 },
+	{ 1,  600000, PLL0,    4, 0,   1140000,    1140000, 6 },
+	{ 1,  787200, ACPUPLL, 5, 0,   1140000,    1140000, 6 },
+	{ 1,  998400, ACPUPLL, 5, 0,   1150000,    1150000, 7 },
+	{ 1, 1094400, ACPUPLL, 5, 0,   1150000,    1150000, 7 },
+	{ 1, 1190400, ACPUPLL, 5, 0,   1150000,    1150000, 8 },
+	{ 0 }
+};
+#else
 static struct clkctl_acpu_speed acpu_freq_tbl_8226_1p2[] = {
 #ifdef CONFIG_CPU_UNDERCLOCK
 	{ 1,  192000, ACPUPLL, 5, 2,   CPR_CORNER_2,   0, 4 },
@@ -88,7 +105,7 @@ static struct clkctl_acpu_speed acpu_freq_tbl_8226_1p2[] = {
 	{ 1, 1190400, ACPUPLL, 5, 0,   CPR_CORNER_12,  0, 7 },
 	{ 0 }
 };
-
+#endif
 static struct clkctl_acpu_speed acpu_freq_tbl_8226_1p4[] = {
 #ifdef CONFIG_CPU_UNDERCLOCK
 	{ 1,  192000, ACPUPLL, 5, 2,   CPR_CORNER_2,   0, 4 },
@@ -109,7 +126,7 @@ static struct clkctl_acpu_speed acpu_freq_tbl_8226_1p4[] = {
 
 static struct clkctl_acpu_speed acpu_freq_tbl_8226_1p6[] = {
 #ifdef CONFIG_CPU_UNDERCLOCK
-	{ 1,  192000, ACPUPLL, 5, 2,   CPR_CORNER_2,   0, 4 },
+	{ 1,  192000, ACPUPLL, 5, 2,   CPR_CORNER_2,   0, 3 },
 	{ 1,  249600, ACPUPLL, 5, 2,   CPR_CORNER_2,   0, 4 },
 #endif
 	{ 1,  300000, PLL0,    4, 2,   CPR_CORNER_2,   0, 4 },
@@ -123,7 +140,7 @@ static struct clkctl_acpu_speed acpu_freq_tbl_8226_1p6[] = {
 	{ 1, 1344000, ACPUPLL, 5, 0,   CPR_CORNER_9,   0, 7 },
 	{ 1, 1401600, ACPUPLL, 5, 0,   CPR_CORNER_10,  0, 7 },
 	{ 1, 1497600, ACPUPLL, 5, 0,   CPR_CORNER_11,  0, 7 },
-	{ 1, 1593600, ACPUPLL, 5, 0,   CPR_CORNER_12,  0, 7 },
+	{ 1, 1593600, ACPUPLL, 5, 0,   CPR_CORNER_12,  0, 8},
 	{ 0 }
 };
 
@@ -152,7 +169,11 @@ static struct acpuclk_drv_data drv_data = {
 	.pvs_tables = pvs_tables_8226,
 	.current_speed = &(struct clkctl_acpu_speed){ 0 },
 	.bus_scale = &bus_client_pdata,
+#ifdef CONFIG_USERSPACE_VOLTAGE_CONTROL
+	.vdd_max_cpu = 1280000,
+#else
 	.vdd_max_cpu = CPR_CORNER_12,
+#endif
 	.src_clocks = {
 		[PLL0].name = "gpll0",
 		[ACPUPLL].name = "a7sspll",
@@ -166,8 +187,8 @@ static struct acpuclk_drv_data drv_data = {
 		.poll_mask = RCG_CONFIG_UPDATE_BIT,
 	},
 #ifdef CONFIG_CPU_UNDERCLOCK
-	.power_collapse_khz = 300000,
-	.wait_for_irq_khz = 300000,
+	.power_collapse_khz = 192000,
+	.wait_for_irq_khz = 192000,
 #else
 	.power_collapse_khz = 300000,
  	.wait_for_irq_khz = 300000,

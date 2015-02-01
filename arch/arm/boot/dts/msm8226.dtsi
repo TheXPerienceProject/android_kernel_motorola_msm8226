@@ -1032,6 +1032,10 @@
 			< 787200000 2>,
 			<1190400000 3>;
 
+		/*
+		* If Userspace Voltage Control is disabled, change this to
+		* <&apc_vreg_corner>;
+		*/
 		cpu-vdd-supply = <&apc_vreg_corner>;
 	};
 
