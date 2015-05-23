@@ -13,6 +13,8 @@
 #ifndef __ARCH_ARM_MACH_MSM_MMI_UNIT_INFO_H
 #define __ARCH_ARM_MACH_MSM_MMI_UNIT_INFO_H
 
+int board_lpm_mode(void);
+
 /* set of data provided to the modem over SMEM */
 #define MMI_UNIT_INFO_VER 2
 #define BARCODE_MAX_LEN 65
