@@ -228,8 +228,10 @@ static ssize_t __ref alessa_plug_hp_enabled_store(struct kobject *kobj, struct k
 	case 0:
 	case 1:
 		alessa_HP_enabled = val;
+	break;
 	default: 	
 		pr_info("AlessaPlug: invalid choice\n");
+	break;
 
 	}
 
@@ -303,12 +305,16 @@ static void __cpuinit alessa_plug_work_fn(struct work_struct *work)
 {	
 	case 0:
 		core_limit = 4;
+	break;
 	case 1:
 		core_limit = 2;
+	break;
 	case 2:
 		core_limit = 1;
+	break;
 	default:
 		core_limit = 4;
+	break;
 	}
 	for(i=0; i < core_limit; i++){
 		if(cpu_online(i))
