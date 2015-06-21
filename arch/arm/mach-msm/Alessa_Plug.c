@@ -182,7 +182,7 @@ static void __ref alessa_plug_boost_work_fn(struct work_struct *work)
 
 static void alessa_plug_input_event(struct input_handle *handle, unsigned int type, unsigned int code, int value)
 {
-	if((type == EV_KEY) && (code == BTN_TOUCH) && (value == 1) && touch_boost_enabled == 1)
+	if ((type == EV_KEY) && (code == BTN_TOUCH) && (value == 1) && touch_boost_enabled == 1 && alessa_HP_enabled == 1)
 	{
 	pr_info("%s: touch boost\n", ALESSAPLUG);
 		queue_delayed_work_on(0, Alessa_plug_boost_wq, &Alessa_plug_touch_boost, msecs_to_jiffies(0));
