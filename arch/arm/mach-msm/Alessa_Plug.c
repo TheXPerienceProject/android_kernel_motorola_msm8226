@@ -32,6 +32,7 @@
  * v1.3.1 Added switch to enable or disable hotplug
  * v1.4.0 Added WQ(Workqueue) for resume on LCD_notify
  * and introducing touch boost
+ * v1.4.1 Fix some logic
  */
 
 #include <linux/module.h>
@@ -47,7 +48,7 @@
 #define ALESSAPLUG "AlessaPlug"
 #define ALESSA_VERSION 1
 #define ALESSA_SUB_VERSION 4
-#define ALESSA_MAINTENANCE 0
+#define ALESSA_MAINTENANCE 1
 
 static int suspend_cpu_num = 2;
 static int resume_cpu_num = 3;
@@ -102,11 +103,11 @@ static inline void offline_cpu(void)
 	unsigned int cpu;
 	switch(endurance_level){
 	case 1:
-		if(suspend_cpu_num > 3)
+		if(suspend_cpu_num >= 3)
 			suspend_cpu_num = 3;
 	break;
 	case 2:
-		if(suspend_cpu_num > 2)
+		if(suspend_cpu_num >= 2)
 			suspend_cpu_num = 2;
 	break;
 	default:
@@ -262,7 +263,7 @@ static ssize_t alessa_plug_suspend_cpu_store(struct kobject *kobj, struct kobj_a
 {//This check How many cores are active
 	int val;
 	sscanf(buf, "%d", &val);
-	if(val < 1 || val > 4)
+	if(val < 1 || val > 3)
 		pr_info("%s: suspend cpus off-limits\n", ALESSAPLUG);
 	else
 		suspend_cpu_num = val;
@@ -430,16 +431,16 @@ static void __cpuinit alessa_plug_work_fn(struct work_struct *work)
 	switch(endurance_level)
 {	
 	case 0:
-		core_limit = 4;
+		core_limit = 3;
 	break;
 	case 1:
 		core_limit = 2;
 	break;
 	case 2:
-		core_limit = 1;
+		core_limit = 0;
 	break;
 	default:
-		core_limit = 4;
+		core_limit = 3;
 	break;
 	}
 	for(i=0; i < core_limit; i++){
