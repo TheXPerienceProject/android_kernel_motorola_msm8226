@@ -12,7 +12,6 @@ WLAN_CHIPSET := pronto
 WLAN_SELECT := CONFIG_PRONTO_WLAN=m
 endif
 
-
 # Build/Package only in case of supported target
 ifneq ($(WLAN_CHIPSET),)
 
@@ -64,10 +63,6 @@ include $(BUILD_PREBUILT)
 
 endif
 
-# Copy WCNSS_cfg.dat file from firmware_bin/ folder to target out directory.
-$(shell rm -f $(TARGET_OUT_ETC)/firmware/wlan/prima/WCNSS_cfg.dat)
-$(shell cp $(LOCAL_PATH)/firmware_bin/WCNSS_cfg.dat $(TARGET_OUT_ETC)/firmware/wlan/prima)
-
 # Build wlan.ko as either prima_wlan.ko or pronto_wlan.ko
 ###########################################################
 
@@ -80,7 +75,6 @@ KBUILD_OPTIONS := WLAN_ROOT=../$(WLAN_BLD_DIR)/prima
 KBUILD_OPTIONS += MODNAME=wlan
 KBUILD_OPTIONS += BOARD_PLATFORM=$(TARGET_BOARD_PLATFORM)
 KBUILD_OPTIONS += $(WLAN_SELECT)
-KBUILD_OPTIONS += BOARD_USES_UTAG_WIFI_MAC=$(BOARD_USES_UTAG_WIFI_MAC)
 
 
 VERSION=$(shell grep -w "VERSION =" $(TOP)/kernel/Makefile | sed 's/^VERSION = //' )

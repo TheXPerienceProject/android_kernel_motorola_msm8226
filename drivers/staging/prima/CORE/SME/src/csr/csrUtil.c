@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -64,10 +64,10 @@
 #include "smeQosInternal.h"
 #include "wlan_qct_wda.h"
 
-#if defined(FEATURE_WLAN_CCX) && !defined(FEATURE_WLAN_CCX_UPLOAD)
+#ifdef FEATURE_WLAN_CCX
 #include "vos_utils.h"
 #include "csrCcx.h"
-#endif /* FEATURE_WLAN_CCX && !FEATURE_WLAN_CCX_UPLOAD*/
+#endif /* FEATURE_WLAN_CCX */
 
 tANI_U8 csrWpaOui[][ CSR_WPA_OUI_SIZE ] = {
     { 0x00, 0x50, 0xf2, 0x00 },
@@ -89,9 +89,7 @@ tANI_U8 csrRSNOui[][ CSR_RSN_OUI_SIZE ] = {
     { 0x00, 0x0F, 0xAC, 0x04 }, // AES-CCMP
     { 0x00, 0x0F, 0xAC, 0x05 }, // WEP-104
     { 0x00, 0x40, 0x96, 0x00 }, // CCKM
-    { 0x00, 0x0F, 0xAC, 0x06 },  // BIP (encryption type) or RSN-PSK-SHA256 (authentication type)
-    /* RSN-8021X-SHA256 (authentication type) */
-    { 0x00, 0x0F, 0xAC, 0x05 }
+    { 0x00, 0x0F, 0xAC, 0x06 }  // BIP (encryption type) or RSN-PSK-SHA256 (authentication type)
 };
 
 #ifdef FEATURE_WLAN_WAPI
@@ -1542,7 +1540,6 @@ tANI_BOOLEAN csrIsP2pSessionConnected( tpAniSirGlobal pMac )
     tCsrRoamSession *pSession = NULL;
     tANI_U32 countP2pCli = 0;
     tANI_U32 countP2pGo = 0;
-    tANI_U32 countSAP = 0;
 
     for( i = 0; i < CSR_ROAM_SESSION_MAX; i++ )
     {
@@ -1559,10 +1556,6 @@ tANI_BOOLEAN csrIsP2pSessionConnected( tpAniSirGlobal pMac )
                 if (pSession->pCurRoamProfile->csrPersona == VOS_P2P_GO_MODE) {
                     countP2pGo++;
                 }
-
-                if (pSession->pCurRoamProfile->csrPersona == VOS_STA_SAP_MODE) {
-                    countSAP++;
-                }
             }
         }
     }
@@ -1571,7 +1564,7 @@ tANI_BOOLEAN csrIsP2pSessionConnected( tpAniSirGlobal pMac )
      * - at least one P2P CLI session is connected
      * - at least one P2P GO session is connected
      */
-    if ( (countP2pCli > 0) || (countP2pGo > 0 ) || (countSAP > 0 ) ) {
+    if ( (countP2pCli > 0) || (countP2pGo > 0 ) ) {
         fRc = eANI_BOOLEAN_TRUE;
     }
 
@@ -2723,7 +2716,6 @@ tANI_BOOLEAN csrIsProfileRSN( tCsrRoamProfile *pProfile )
 #endif 
 #ifdef WLAN_FEATURE_11W
         case eCSR_AUTH_TYPE_RSN_PSK_SHA256:
-        case eCSR_AUTH_TYPE_RSN_8021X_SHA256:
 #endif
             fRSNProfile = TRUE;
             break;
@@ -2918,16 +2910,6 @@ tANI_U16 csrCalculateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U16 sta_bi, tAN
     else
        go_cbi = 100 + (go_gbi % 100);
 
-      if ( sta_bi == 0 )
-    {
-        /* There is possibility to receive zero as value.
-           Which will cause divide by zero. Hence initialise with 100
-        */
-        sta_bi =  100;
-        smsLog(pMac, LOGW,
-            FL("sta_bi 2nd parameter is zero, initialise to %d"), sta_bi);
-    }
-
     // check, if either one is multiple of another
     if (sta_bi > go_cbi)
     {
@@ -3105,14 +3087,6 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                             continue;
                         }
 
-                        //Assert if connected profile beacon internal is ZERO
-                        if(!pMac->roam.roamSession[sessionId].\
-                            connectedProfile.beaconInterval)
-                        {
-                            smsLog( pMac, LOGE, FL(" Connected profile "
-                                "beacon interval is zero") );
-                        }
-
                             
                         if (csrIsConnStateConnectedInfra(pMac, sessionId) &&
                            (pMac->roam.roamSession[sessionId].connectedProfile.operationChannel
@@ -3137,7 +3111,7 @@ eHalStatus csrValidateMCCBeaconInterval(tpAniSirGlobal pMac, tANI_U8 channelId,
                 break;
 
                 default :
-                    smsLog(pMac, LOGE, FL(" Persona not supported : %d"),currBssPersona);
+                    smsLog(pMac, LOG1, FL(" Persona not supported : %d"),currBssPersona);
                     return eHAL_STATUS_FAILURE;
             }
         }
@@ -3461,13 +3435,6 @@ static tANI_BOOLEAN csrIsAuthRSNPskSha256( tpAniSirGlobal pMac, tANI_U8 AllSuite
 {
     return csrIsOuiMatch( pMac, AllSuites, cAllSuites, csrRSNOui[07], Oui );
 }
-static tANI_BOOLEAN csrIsAuthRSN8021xSha256(tpAniSirGlobal pMac,
-                                            tANI_U8 AllSuites[][CSR_RSN_OUI_SIZE],
-                                            tANI_U8 cAllSuites,
-                                            tANI_U8 Oui[] )
-{
-    return csrIsOuiMatch( pMac, AllSuites, cAllSuites, csrRSNOui[8], Oui );
-}
 #endif
 
 static tANI_BOOLEAN csrIsAuthWpa( tpAniSirGlobal pMac, tANI_U8 AllSuites[][CSR_WPA_OUI_SIZE],
@@ -3685,13 +3652,6 @@ tANI_BOOLEAN csrGetRSNInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eCs
                     if (eCSR_AUTH_TYPE_RSN_PSK_SHA256 == pAuthType->authType[i])
                         negAuthType = eCSR_AUTH_TYPE_RSN_PSK_SHA256;
                 }
-                if ((negAuthType == eCSR_AUTH_TYPE_UNKNOWN) &&
-                    csrIsAuthRSN8021xSha256(pMac, AuthSuites,
-                                             cAuthSuites, Authentication)) {
-                    if (eCSR_AUTH_TYPE_RSN_8021X_SHA256 ==
-                                                     pAuthType->authType[i])
-                        negAuthType = eCSR_AUTH_TYPE_RSN_8021X_SHA256;
-                }
 #endif
 
                 // The 1st auth type in the APs RSN IE, to match stations connecting
@@ -3734,8 +3694,10 @@ tANI_BOOLEAN csrGetRSNInformation( tHalHandle hHal, tCsrAuthList *pAuthType, eCs
             Capabilities->NoPairwise = (pRSNIe->RSN_Cap[0] >> 1) & 0x1 ; // Bit 1 No Pairwise
             Capabilities->PTKSAReplayCounter = (pRSNIe->RSN_Cap[0] >> 2) & 0x3 ; // Bit 2, 3 PTKSA Replay Counter
             Capabilities->GTKSAReplayCounter = (pRSNIe->RSN_Cap[0] >> 4) & 0x3 ; // Bit 4, 5 GTKSA Replay Counter
+#ifdef WLAN_FEATURE_11W
             Capabilities->MFPRequired = (pRSNIe->RSN_Cap[0] >> 6) & 0x1 ; // Bit 6 MFPR
             Capabilities->MFPCapable = (pRSNIe->RSN_Cap[0] >> 7) & 0x1 ; // Bit 7 MFPC
+#endif
             Capabilities->Reserved = pRSNIe->RSN_Cap[1]  & 0xff ; // remaining reserved
         }
     }
@@ -3781,8 +3743,8 @@ tANI_BOOLEAN csrLookupPMKID( tpAniSirGlobal pMac, tANI_U32 sessionId, tANI_U8 *p
     {
         for( Index=0; Index < pSession->NumPmkidCache; Index++ )
         {
-            smsLog(pMac, LOGW, "match PMKID "MAC_ADDRESS_STR " to ",
-                   MAC_ADDR_ARRAY(pBSSId));
+            smsLog(pMac, LOGW, "match PMKID %02X-%02X-%02X-%02X-%02X-%02X to ",
+                pBSSId[0], pBSSId[1], pBSSId[2], pBSSId[3], pBSSId[4], pBSSId[5]);
             if( palEqualMemory( pMac->hHdd, pBSSId, pSession->PmkidCacheInfo[Index].BSSID, sizeof(tCsrBssid) ) )
             {
                 // match found
@@ -4066,8 +4028,8 @@ tANI_BOOLEAN csrLookupBKID( tpAniSirGlobal pMac, tANI_U32 sessionId, tANI_U8 *pB
     {
         for( Index=0; Index < pSession->NumBkidCache; Index++ )
         {
-            smsLog(pMac, LOGW, "match BKID "MAC_ADDRESS_STR" to ",
-                   MAC_ADDR_ARRAY(pBSSId));
+            smsLog(pMac, LOGW, "match BKID %02X-%02X-%02X-%02X-%02X-%02X to ",
+                pBSSId[0], pBSSId[1], pBSSId[2], pBSSId[3], pBSSId[4], pBSSId[5]);
             if( palEqualMemory( pMac->hHdd, pBSSId, pSession->BkidCacheInfo[Index].BSSID, sizeof(tCsrBssid) ) )
             {
                 // match found
@@ -5938,7 +5900,7 @@ tSirResultCodes csrGetDeAuthRspStatusCode( tSirSmeDeauthRsp *pSmeRsp )
     tANI_U8 *pBuffer = (tANI_U8 *)pSmeRsp;
     tANI_U32 ret;
 
-    pBuffer += (sizeof(tANI_U16) + sizeof(tANI_U16) + sizeof(tANI_U8) + sizeof(tANI_U16));
+    pBuffer += (sizeof(tANI_U16) + sizeof(tANI_U16) + sizeof(tSirMacAddr));
     //tSirResultCodes is an enum, assuming is 32bit
     //If we cannot make this assumption, use copymemory
     pal_get_U32( pBuffer, &ret );
@@ -6144,13 +6106,7 @@ v_REGDOMAIN_t csrGetCurrentRegulatoryDomain(tpAniSirGlobal pMac)
 }
 
 
-eHalStatus csrGetRegulatoryDomainForCountry
-(
-tpAniSirGlobal pMac,
-tANI_U8 *pCountry,
-v_REGDOMAIN_t *pDomainId,
-v_CountryInfoSource_t source
-)
+eHalStatus csrGetRegulatoryDomainForCountry(tpAniSirGlobal pMac, tANI_U8 *pCountry, v_REGDOMAIN_t *pDomainId)
 {
     eHalStatus status = eHAL_STATUS_INVALID_PARAMETER;
     VOS_STATUS vosStatus;
@@ -6161,10 +6117,7 @@ v_CountryInfoSource_t source
     {
         countryCode[0] = pCountry[0];
         countryCode[1] = pCountry[1];
-        vosStatus = vos_nv_getRegDomainFromCountryCode(&domainId,
-                                                       countryCode,
-                                                       source);
-
+        vosStatus = vos_nv_getRegDomainFromCountryCode( &domainId, countryCode );
         if( VOS_IS_STATUS_SUCCESS(vosStatus) )
         {
             if( pDomainId )
@@ -6175,7 +6128,7 @@ v_CountryInfoSource_t source
         }
         else
         {
-            smsLog(pMac, LOGW, FL(" Couldn't find domain for country code  %c%c"), pCountry[0], pCountry[1]);
+            smsLog(pMac, LOGW, FL("  doesn't match country %c%c"), pCountry[0], pCountry[1]);
             status = eHAL_STATUS_INVALID_PARAMETER;
         }
     }
@@ -6212,15 +6165,10 @@ tANI_BOOLEAN csrMatchCountryCode( tpAniSirGlobal pMac, tANI_U8 *pCountry, tDot11
             //Make sure this country is recognizable
             if( pIes->Country.present )
             {
-                status = csrGetRegulatoryDomainForCountry(pMac,
-                                           pIes->Country.country,
-                                           &domainId, COUNTRY_QUERY);
+                status = csrGetRegulatoryDomainForCountry( pMac, pIes->Country.country, &domainId );
                 if( !HAL_STATUS_SUCCESS( status ) )
                 {
-                     status = csrGetRegulatoryDomainForCountry(pMac,
-                                                 pMac->scan.countryCode11d,
-                                                 (v_REGDOMAIN_t *) &domainId,
-                                                 COUNTRY_QUERY);
+                     status = csrGetRegulatoryDomainForCountry( pMac, pMac->scan.countryCode11d,(v_REGDOMAIN_t *) &domainId );
                      if( !HAL_STATUS_SUCCESS( status ) )
                      {
                            fRet = eANI_BOOLEAN_FALSE;

@@ -82,7 +82,7 @@
  VOS_STATUS hdd_enter_standby(hdd_context_t *pHddCtx);
  VOS_STATUS hdd_enter_deep_sleep(hdd_context_t *pHddCtx, 
                                 hdd_adapter_t* pAdapter);
-#ifdef CONFIG_HAS_EARLYSUSPEND
+#ifdef CONFIG_POWERSUSPEND
  VOS_STATUS hdd_wlan_reset(void);
  VOS_STATUS hdd_wlan_reset_initialization(void) ;
 #endif
@@ -91,7 +91,7 @@
  VOS_STATUS hdd_wlan_re_init(void);
 
 void hdd_conf_mcastbcast_filter(hdd_context_t* pHddCtx, v_BOOL_t setfilter);
-VOS_STATUS hdd_conf_arp_offload(hdd_adapter_t* pAdapter, int fenable);
+VOS_STATUS hdd_conf_arp_offload(hdd_adapter_t* pAdapter, v_BOOL_t fenable);
 /*
  * Function: hdd_conf_hostoffload
  *           Central function to configure the supported offloads,
@@ -102,6 +102,6 @@ void hdd_conf_hostoffload(hdd_adapter_t * pAdapter, v_BOOL_t fenable);
 void hdd_conf_gtk_offload(hdd_adapter_t *pAdapter, v_BOOL_t fenable);
 #endif
 #ifdef WLAN_NS_OFFLOAD
-void hdd_conf_ns_offload(hdd_adapter_t *pAdapter, int fenable);
+void hdd_conf_ns_offload(hdd_adapter_t *pAdapter, v_BOOL_t fenable);
 #endif
 #endif // if !defined __WLAN_QCT_DRIVER_H
