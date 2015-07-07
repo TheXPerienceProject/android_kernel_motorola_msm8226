@@ -1005,7 +1005,7 @@ static char *WDI_getReqMsgString(wpt_uint16 wdiReqMsgId)
  @see
  @return Result of the function call
 */
-static char *WDI_getRespMsgString(wpt_uint16 wdiRespMsgId)
+inline char *WDI_getRespMsgString(wpt_uint16 wdiRespMsgId)
 {
   switch (wdiRespMsgId)
   {
