@@ -350,12 +350,7 @@ static inline int ion_handle_get_flags(struct ion_client *client,
 struct ion_allocation_data {
 	size_t len;
 	size_t align;
-#ifdef  __KERNEL__
- 	unsigned int heap_mask;
-#else
-        /* Userspace wants this renamed... */
-	unsigned int heap_id_mask;
-#endif
+	unsigned int heap_mask;
 	unsigned int flags;
 	ion_user_handle_t handle;
 };
