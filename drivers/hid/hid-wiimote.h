@@ -105,6 +105,14 @@ struct wiimote_buf {
 	size_t size;
 };
 
+struct wiimote_queue {
+	spinlock_t lock;
+	struct work_struct worker;
+	__u8 head;
+	__u8 tail;
+	struct wiimote_buf outq[WIIMOTE_BUFSIZE];
+};
+
 struct wiimote_state {
 	spinlock_t lock;
 	__u32 flags;
@@ -365,3 +373,4 @@ static inline int wiimote_cmd_wait_noint(struct wiimote_data *wdata)
 }
 
 #endif
+

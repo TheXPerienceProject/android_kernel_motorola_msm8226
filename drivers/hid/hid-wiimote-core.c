@@ -41,14 +41,16 @@ static int wiimote_hid_send(struct hid_device *hdev, __u8 *buffer,
 	return ret;
 }
 
-static void wiimote_worker(struct work_struct *work)
+static void wiimote_queue_worker(struct work_struct *work)
 {
-	struct wiimote_data *wdata = container_of(work, struct wiimote_data,
-									worker);
+	struct wiimote_queue *queue = container_of(work, struct wiimote_queue,
+						   worker);
+	struct wiimote_data *wdata = container_of(queue, struct wiimote_data,
+						  queue);
 	unsigned long flags;
 	int ret;
 
-	spin_lock_irqsave(&wdata->qlock, flags);
+	spin_lock_irqsave(&wdata->queue.lock, flags);
 
 	while (wdata->queue.head != wdata->queue.tail) {
 		spin_unlock_irqrestore(&wdata->queue.lock, flags);
@@ -62,10 +64,10 @@ static void wiimote_worker(struct work_struct *work)
 		}
 		spin_lock_irqsave(&wdata->queue.lock, flags);
 
-		wdata->tail = (wdata->tail + 1) % WIIMOTE_BUFSIZE;
+		wdata->queue.tail = (wdata->queue.tail + 1) % WIIMOTE_BUFSIZE;
 	}
 
-	spin_unlock_irqrestore(&wdata->qlock, flags);
+	spin_unlock_irqrestore(&wdata->queue.lock, flags);
 }
 
 static void wiimote_queue(struct wiimote_data *wdata, const __u8 *buffer,
@@ -91,22 +93,21 @@ static void wiimote_queue(struct wiimote_data *wdata, const __u8 *buffer,
 	 * will reschedule itself until the queue is empty.
 	 */
 
-	spin_lock_irqsave(&wdata->qlock, flags);
+	spin_lock_irqsave(&wdata->queue.lock, flags);
 
-	memcpy(wdata->outq[wdata->head].data, buffer, count);
-	wdata->outq[wdata->head].size = count;
-	newhead = (wdata->head + 1) % WIIMOTE_BUFSIZE;
+	memcpy(wdata->queue.outq[wdata->queue.head].data, buffer, count);
+	wdata->queue.outq[wdata->queue.head].size = count;
+	newhead = (wdata->queue.head + 1) % WIIMOTE_BUFSIZE;
 
-	if (wdata->head == wdata->tail) {
-		wdata->head = newhead;
-		schedule_work(&wdata->worker);
-	} else if (newhead != wdata->tail) {
-		wdata->head = newhead;
+	if (wdata->queue.head == wdata->queue.tail) {
+		wdata->queue.head = newhead;
+		schedule_work(&wdata->queue.worker);
+	} else if (newhead != wdata->queue.tail) {
+		wdata->queue.head = newhead;
 	} else {
 		hid_warn(wdata->hdev, "Output queue is full");
 		goto out_error;
 	}
-
 
 	goto out_unlock;
 
@@ -1889,3 +1890,4 @@ module_exit(wiimote_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("David Herrmann <dh.herrmann@gmail.com>");
 MODULE_DESCRIPTION("Driver for Nintendo Wii / Wii U peripherals");
+
