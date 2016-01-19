@@ -53,7 +53,7 @@
  * lowering the frequency towards the ideal frequency is faster than below it.
  */
 
-#define GOV_IDLE_FREQ 384000
+#define GOV_IDLE_FREQ 96000
 
 #define DEFAULT_SUSPEND_IDEAL_FREQ GOV_IDLE_FREQ
 static unsigned int suspend_ideal_freq;
@@ -111,7 +111,7 @@ static unsigned int sampling_rate;
 #define DEFAULT_INPUT_BOOST_DURATION 50000000
 static unsigned int input_boost_duration;
 
-static unsigned int touch_poke_freq = 787200;
+static unsigned int touch_poke_freq = 1593600;
 static bool touch_poke = true;
 
 /*
