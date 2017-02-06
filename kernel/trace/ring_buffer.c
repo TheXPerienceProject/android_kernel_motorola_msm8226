@@ -1301,13 +1301,14 @@ int ring_buffer_resize(struct ring_buffer *buffer, unsigned long size)
 	if (!buffer)
 		return size;
 
-	size = DIV_ROUND_UP(size, BUF_PAGE_SIZE);
-	size *= BUF_PAGE_SIZE;
+	nr_pages = DIV_ROUND_UP(size, BUF_PAGE_SIZE);
 	buffer_size = buffer->pages * BUF_PAGE_SIZE;
 
 	/* we need a minimum of two pages */
-	if (size < BUF_PAGE_SIZE * 2)
-		size = BUF_PAGE_SIZE * 2;
+	if (nr_pages < 2)
+		nr_pages = 2;
+
+	size = nr_pages * BUF_PAGE_SIZE;
 
 	if (size == buffer_size)
 		return size;
@@ -1319,8 +1320,6 @@ int ring_buffer_resize(struct ring_buffer *buffer, unsigned long size)
 
 	mutex_lock(&buffer->mutex);
 	get_online_cpus();
-
-	nr_pages = DIV_ROUND_UP(size, BUF_PAGE_SIZE);
 
 	if (size < buffer_size) {
 
@@ -1548,12 +1547,6 @@ rb_set_commit_to_write(struct ring_buffer_per_cpu *cpu_buffer)
 	 */
 	if (unlikely(cpu_buffer->commit_page != cpu_buffer->tail_page))
 		goto again;
-}
-
-static void rb_reset_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
-{
-	cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
-	cpu_buffer->reader_page->read = 0;
 }
 
 static void rb_inc_iter(struct ring_buffer_iter *iter)
@@ -2008,6 +2001,13 @@ __rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
 	/* set write to only the index of the write */
 	write &= RB_WRITE_MASK;
 	tail = write - length;
+
+	/*
+	 * If this is the first commit on the page, then it has the same
+	 * timestamp as the page itself.
+	 */
+	if (!tail)
+		delta = 0;
 
 	/* See if we shot pass the end of this buffer page */
 	if (unlikely(write > BUF_PAGE_SIZE))
@@ -3088,7 +3088,7 @@ rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
 
 	/* Finally update the reader page to the new head */
 	cpu_buffer->reader_page = reader;
-	rb_reset_reader_page(cpu_buffer);
+	cpu_buffer->reader_page->read = 0;
 
 	if (overwrite != cpu_buffer->last_overrun) {
 		cpu_buffer->lost_events = overwrite - cpu_buffer->last_overrun;
@@ -3098,6 +3098,10 @@ rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
 	goto again;
 
  out:
+	/* Update the read_stamp on the first event */
+	if (reader && reader->read == 0)
+		cpu_buffer->read_stamp = reader->page->time_stamp;
+
 	arch_spin_unlock(&cpu_buffer->lock);
 	local_irq_restore(flags);
 

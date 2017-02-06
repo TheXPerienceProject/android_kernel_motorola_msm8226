@@ -9,6 +9,7 @@
 #include <linux/list.h>
 #include <linux/sysctl.h>
 
+#include <net/flow.h>
 #include <net/netns/core.h>
 #include <net/netns/mib.h>
 #include <net/netns/unix.h>
@@ -68,6 +69,7 @@ struct net {
 	struct hlist_head 	*dev_name_head;
 	struct hlist_head	*dev_index_head;
 	unsigned int		dev_base_seq;	/* protected by rtnl_mutex */
+	int			ifindex;
 
 	/* core fib_rules */
 	struct list_head	rules_ops;
@@ -104,7 +106,6 @@ struct net {
 #endif
 	struct netns_ipvs	*ipvs;
 };
-
 
 #include <linux/seq_file_net.h>
 

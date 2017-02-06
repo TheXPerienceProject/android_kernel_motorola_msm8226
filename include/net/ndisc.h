@@ -46,6 +46,7 @@ enum {
 #include <linux/icmpv6.h>
 #include <linux/in6.h>
 #include <linux/types.h>
+#include <linux/hash.h>
 
 #include <net/neighbour.h>
 
@@ -83,7 +84,7 @@ static inline u32 ndisc_hashfn(const void *pkey, const struct net_device *dev, _
 {
 	const u32 *p32 = pkey;
 
-	return (((p32[0] ^ dev->ifindex) * hash_rnd[0]) +
+	return (((p32[0] ^ hash32_ptr(dev)) * hash_rnd[0]) +
 		(p32[1] * hash_rnd[1]) +
 		(p32[2] * hash_rnd[2]) +
 		(p32[3] * hash_rnd[3]));
@@ -117,7 +118,9 @@ static inline struct neighbour *__ipv6_neigh_lookup(struct neigh_table *tbl, str
 }
 
 extern int			ndisc_init(void);
+extern int			ndisc_late_init(void);
 
+extern void			ndisc_late_cleanup(void);
 extern void			ndisc_cleanup(void);
 
 extern int			ndisc_rcv(struct sk_buff *skb);
