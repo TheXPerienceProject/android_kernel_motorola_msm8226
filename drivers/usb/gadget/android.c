@@ -2744,7 +2744,7 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 	int err;
 	int is_ffs;
 	int ffs_enabled = 0;
-	int hid_enabled;
+	int hid_enabled = 0;
 
 	mutex_lock(&dev->mutex);
 
