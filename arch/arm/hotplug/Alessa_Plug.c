@@ -39,6 +39,7 @@
  * v1.4.5 code cleanup
  * v2.0.0 Improve hotplug algorithm
  * v2.1.0 Now compatible with 2 cores to 8 cores.
+ * V2.2.0 Configure for falcon (Only)
  */
 #include <asm/cputime.h>
 #include <linux/module.h>
@@ -55,23 +56,23 @@
 
 #define ALESSAPLUG "AlessaPlug"
 #define ALESSA_VERSION 2
-#define ALESSA_SUB_VERSION 1
+#define ALESSA_SUB_VERSION 2
 #define ALESSA_MAINTENANCE 0
 
 //disable messages
 #define DEBUGMODE 0
 
-#define CPU_LOAD_THRESHOLD    (65)
+#define CPU_LOAD_THRESHOLD    (70) //The Max load threshold to enable all cores (Make it more conservative)
 #define MIN_CPU_LOAD_THRESHOLD (10)
-#define DEF_SAMPLING_MS (500)
+#define DEF_SAMPLING_MS (600)
 #define MIN_SAMPLING_MS (50)
 //Define the min time of the cpu are up
-#define CPU_MIN_TIME_UP (750)
-#define TOUCH_BOOST_ENABLED (0)
+#define CPU_MIN_TIME_UP (650)
+#define TOUCH_BOOST_ENABLED (1)
 
 static bool isSuspended = false;
 static int suspend_cpu_num = 2, resume_cpu_num = (NR_CPUS -1);
-static int endurance_level = 0;
+static int endurance_level = 0; //to convert a device in dual quad or six core
 static int core_limit = NR_CPUS;
 struct notifier_block lcd_worker;
 static int sampling_time = DEF_SAMPLING_MS;
