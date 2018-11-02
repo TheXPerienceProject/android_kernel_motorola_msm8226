@@ -1,12 +1,6 @@
-config ALESSA_HOTPLUG
-	bool "Enable Alessa_plug cpu hotplug driver"
-	default y
+config ALESSA_PLUG
+	bool "Enable plugging down/up of cores using powersuspend"
 	help
-	    Generic alessa_plug cpu hotplug driver for ARM SOCs on the XPerience kernel
-	    
-config ALESSA_HOTPLUG_USE_CPU_UTIL
-	bool "Enable Alessa_plug cpu statistics utilization"
-	depends on (ALESSA_HOTPLUG)
-	default y
-	help
-	  Alessa_plug cpu statistics utilization
+	  This driver uses powersuspend to take down the cpu cores
+	  on a dual core device.
+	  Later this maybe be a reemplace of hotplug.
