@@ -2017,7 +2017,9 @@ static ssize_t f2fs_direct_IO(int rw, struct kiocb *iocb,
 	struct file *file = iocb->ki_filp;
 	struct address_space *mapping = file->f_mapping;
 	struct inode *inode = mapping->host;
+#ifndef CONFIG_AIO_OPTIMIZATION
 	size_t count = iov_length(iov, nr_segs);
+#endif
 	int err;
 
 	/* we don't need to use inline_data strictly */
@@ -2036,14 +2038,20 @@ static ssize_t f2fs_direct_IO(int rw, struct kiocb *iocb,
 	if (check_direct_IO(inode, rw, iov, offset, nr_segs))
 #endif
 		return 0;
-
+#ifndef CONFIG_AIO_OPTIMIZATION
 	trace_f2fs_direct_IO_enter(inode, offset, count, rw);
+#endif
 
 	if (rw & WRITE)
 		__allocate_data_blocks(inode, offset, count);
-
+/* Needs synchronization with the cleaner */
+#ifdef CONFIG_AIO_OPTIMIZATION
+	err = blockdev_direct_IO(rw, iocb, inode, iter, offset,
+						  get_data_block);
+#else
 	err = blockdev_direct_IO(rw, iocb, inode, iov, offset, nr_segs,
 							get_data_block);
+#endif
 	if (err < 0 && (rw & WRITE))
 		f2fs_write_failed(mapping, offset + count);
 
@@ -2051,14 +2059,6 @@ static ssize_t f2fs_direct_IO(int rw, struct kiocb *iocb,
 
 	return err;
 
-	/* Needs synchronization with the cleaner */
-#ifdef CONFIG_AIO_OPTIMIZATION
-	return blockdev_direct_IO(rw, iocb, inode, iter, offset,
-						  get_data_block);
-#else
-	return blockdev_direct_IO(rw, iocb, inode, iov, offset, nr_segs,
-							get_data_block);
-#endif
 }
 
 void f2fs_invalidate_page(struct page *page, unsigned long offset)
