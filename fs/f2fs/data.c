@@ -2040,10 +2040,10 @@ static ssize_t f2fs_direct_IO(int rw, struct kiocb *iocb,
 		return 0;
 #ifndef CONFIG_AIO_OPTIMIZATION
 	trace_f2fs_direct_IO_enter(inode, offset, count, rw);
-#endif
 
 	if (rw & WRITE)
 		__allocate_data_blocks(inode, offset, count);
+#endif
 /* Needs synchronization with the cleaner */
 #ifdef CONFIG_AIO_OPTIMIZATION
 	err = blockdev_direct_IO(rw, iocb, inode, iter, offset,
@@ -2051,12 +2051,12 @@ static ssize_t f2fs_direct_IO(int rw, struct kiocb *iocb,
 #else
 	err = blockdev_direct_IO(rw, iocb, inode, iov, offset, nr_segs,
 							get_data_block);
-#endif
+
 	if (err < 0 && (rw & WRITE))
 		f2fs_write_failed(mapping, offset + count);
 
 	trace_f2fs_direct_IO_exit(inode, offset, count, rw, err);
-
+#endif
 	return err;
 
 }
