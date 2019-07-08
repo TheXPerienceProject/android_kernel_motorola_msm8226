@@ -1975,13 +1975,8 @@ static int f2fs_write_end(struct file *file,
 	return copied;
 }
 
-#ifdef CONFIG_AIO_OPTIMIZATION
-static int check_direct_IO(struct inode *inode, int rw,
-		struct iov_iter *iter, loff_t offset)
-#else
 static int check_direct_IO(struct inode *inode, int rw,
 		const struct iovec *iov, loff_t offset, unsigned long nr_segs)
-#endif
 {
 	unsigned blocksize_mask = inode->i_sb->s_blocksize - 1;
 	int i;
@@ -1992,18 +1987,10 @@ static int check_direct_IO(struct inode *inode, int rw,
 	if (offset & blocksize_mask)
 		return -EINVAL;
 
-#ifdef CONFIG_AIO_OPTIMIZATION
-	for (i = 0; i < iter->nr_segs; i++) {
-		const struct iovec *iov = iov_iter_iovec(iter);
-
-		if (iov[i].iov_len & blocksize_mask)
-			return -EINVAL;
-	}
-#else
 	for (i = 0; i < nr_segs; i++)
 		if (iov[i].iov_len & blocksize_mask)
 			return -EINVAL;
-#endif
+
 	return 0;
 }
 
@@ -2030,11 +2017,7 @@ static ssize_t f2fs_direct_IO(int rw, struct kiocb *iocb,
 	if (f2fs_encrypted_inode(inode) && S_ISREG(inode->i_mode))
 		return 0;
 
-#ifdef CONFIG_AIO_OPTIMIZATION
-	if (check_direct_IO(inode, rw, iter, offset))
-#else
 	if (check_direct_IO(inode, rw, iov, offset, nr_segs))
-#endif
 		return 0;
 
 	trace_f2fs_direct_IO_enter(inode, offset, count, rw);
@@ -2054,7 +2037,7 @@ static ssize_t f2fs_direct_IO(int rw, struct kiocb *iocb,
 	/* Needs synchronization with the cleaner */
 #ifdef CONFIG_AIO_OPTIMIZATION
 	return blockdev_direct_IO(rw, iocb, inode, iter, offset,
-						  get_data_block);
+						  get_data_block_ro);
 #else
 	return blockdev_direct_IO(rw, iocb, inode, iov, offset, nr_segs,
 							get_data_block);
