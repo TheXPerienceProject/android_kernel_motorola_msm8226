@@ -638,9 +638,9 @@ int vfp_restore_user_hwstate(struct user_vfp __user *ufp,
 	return err ? -EFAULT : 0;
 }
 
-void vfp_kmode_exception(void)
+/*void vfp_kmode_exception(void)
 {
-	/*
+
 	 * If we reach this point, a floating point exception has been raised
 	 * while running in kernel mode. If the NEON/VFP unit was enabled at the
 	 * time, it means a VFP instruction has been issued that requires
@@ -652,11 +652,11 @@ void vfp_kmode_exception(void)
 	 * rebuilding and running with CONFIG_DEBUG_ATOMIC_SLEEP enabled should
 	 * be helpful in localizing the problem.
 	 */
-	if (fmrx(FPEXC) & FPEXC_EN)
+/*	if (fmrx(FPEXC) & FPEXC_EN)
 		pr_crit("BUG: unsupported FP instruction in kernel mode\n");
 	else
 		pr_crit("BUG: FP instruction issued in kernel mode with FP unit disabled\n");
-}
+}*/
 
 /*
  * VFP hardware can lose all context when a CPU goes offline.
